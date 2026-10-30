@@ -25,8 +25,9 @@
 
 1. Understand existing behaviour and document testable acceptance criteria.
 2. Make **one coherent small change**.
-3. Run `./scripts/test.sh` and, where ESPHome is available, `esphome config`
-   then `esphome compile`.
+3. Use the project's mise toolchain: `mise install`, `mise run test`, and,
+   once `esphome/secrets.yaml` exists, `mise run config` then `mise run compile`.
+   The underlying commands are `scripts/test.sh` and `esphome config/compile`.
 4. Ask for real-hardware smoke tests and record results as observed/unverified.
 5. Update `docs/STATUS.md` and `docs/protocol.md` on relevant discoveries.
 6. Prefer small PRs. Never push or open an upstream PR without user's approval.
