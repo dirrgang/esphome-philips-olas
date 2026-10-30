@@ -1,0 +1,17 @@
+# ESPHome and credentials
+**/secrets.yaml
+**/.esphome/
+**/.pio/
+**/.platformio/
+**/build/
+*.bin
+*.elf
+*.map
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+# Tests
+__pycache__/
+*.pyc
+.coverage

@@ -1,0 +1,151 @@
+# Reference configuration reconstructed from tested stages on ESPHome 2026.10.1.
+# Do NOT flash blindly over an existing HA device: preserve your API/OTA credentials,
+# existing network configuration, and device-specific settings.
+# Copy secrets.yaml.example to secrets.yaml and edit it first.
+
+substitutions:
+  olas_fan_id: !secret olas_fan_id
+  olas_check_xor: !secret olas_check_xor
+
+esphome:
+  name: olas-rf-gateway
+  includes:
+    - include/olas_protocol.h
+
+esp32:
+  variant: esp32s2
+  framework:
+    type: esp-idf
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+spi:
+  clk_pin: GPIO7
+  mosi_pin: GPIO11
+  miso_pin: GPIO9
+
+cc1101:
+  cs_pin: GPIO12
+  frequency: 434MHz
+  modulation_type: ASK/OOK
+
+remote_transmitter:
+  id: olas_tx
+  pin: GPIO5
+  carrier_duty_percent: 100%
+  on_transmit:
+    then:
+      - cc1101.begin_tx
+  on_complete:
+    then:
+      - cc1101.begin_rx
+
+globals:
+  - id: olas_seq
+    type: uint8_t
+    restore_value: no
+    initial_value: '1'
+
+  - id: olas_rf_update
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+remote_receiver:
+  pin: GPIO3
+  filter: 50us
+  idle: 10ms
+  # Raw dumping is deliberately disabled in normal operation.
+  on_raw:
+    then:
+      - lambda: |-
+          constexpr uint32_t FAN_ID = ${olas_fan_id};
+          constexpr uint8_t CHECK_XOR = ${olas_check_xor};
+          olas::Frame frame;
+          if (!olas::decode_raw(x.data(), x.size(), FAN_ID, CHECK_XOR, frame))
+            return;
+
+          // Several identical frames form a single physical key press.
+          static uint64_t last_frame = 0;
+          static uint32_t last_seen_ms = 0;
+          static bool have_last = false;
+          const uint32_t now = millis();
+          if (have_last && frame.raw == last_frame &&
+              uint32_t(now - last_seen_ms) < 400u)
+            return;
+          last_frame = frame.raw;
+          last_seen_ms = now;
+          have_last = true;
+
+          // Synchronize next locally transmitted sequence after receiving
+          // an external remote press. RX is disabled while our TX is active.
+          id(olas_seq) = olas::next_sequence(frame.sequence);
+
+          ESP_LOGI("olas", "RX function=0x%02X seq=%u",
+                   unsigned(frame.function), unsigned(frame.sequence));
+
+          const int speed = olas::speed_for_function(frame.function);
+          if (speed < 0)
+            return;  // light, timer, direction: observed but not yet mapped
+
+          // publish_state() triggers fan.on_state. Guard against RF echo.
+          id(olas_rf_update) = true;
+          id(olas_fan).state = speed != 0;
+          if (speed != 0)
+            id(olas_fan).speed = speed;
+          id(olas_fan).publish_state();
+          id(olas_rf_update) = false;
+
+fan:
+  - platform: template
+    id: olas_fan
+    name: "Philips Olas"
+    speed_count: 6
+    on_state:
+      then:
+        - lambda: |-
+            if (id(olas_rf_update))
+              return;
+
+            int speed = x->state ? x->speed : 0;
+            if (x->state && speed == 0)
+              speed = 1;
+            if (speed < 0 || speed > 6)
+              return;
+
+            constexpr uint32_t FAN_ID = ${olas_fan_id};
+            constexpr uint8_t CHECK_XOR = ${olas_check_xor};
+            const uint8_t seq = id(olas_seq) & 0x03u;
+            const uint8_t cmd = olas::make_command(
+                olas::function_for_speed(speed), seq);
+            const uint64_t frame = olas::encode_frame(FAN_ID, cmd, CHECK_XOR);
+
+            auto call = id(olas_tx).transmit();
+            auto *data = call.get_data();
+            data->item(7400, 1090);
+            for (int bit = 40; bit >= 0; --bit) {
+              if ((frame >> bit) & 1ULL)
+                data->item(730, 340);
+              else
+                data->item(340, 730);
+            }
+            call.set_send_times(4);
+            call.set_send_wait(0);
+            call.perform();
+
+            id(olas_seq) = olas::next_sequence(seq);
+            ESP_LOGI("olas", "TX fan speed=%d function=0x%02X seq=%u",
+                     speed, unsigned(olas::function_code(cmd)), unsigned(seq));
