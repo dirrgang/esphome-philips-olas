@@ -30,6 +30,39 @@ protocol discoveries. We do not copy upstream source files.
 - Eight wires; see [docs/hardware.md](docs/hardware.md)
 - ESPHome **2026.10.1** was the tested firmware version
 
+## Development setup with mise
+
+Install [mise](https://mise.jdx.dev/) once, then from the repository root:
+
+```sh
+mise install
+mise run version
+mise run test
+```
+
+`mise.toml` selects Python 3.13, uv 0.12.10 and **ESPHome 2026.10.1**
+installed as an isolated PyPI CLI via mise's `pypi:` backend. No global
+`pip install` and no project Python virtual environment are needed.
+
+To check or compile the firmware, first create your **local untracked**
+`esphome/secrets.yaml` from `esphome/secrets.yaml.example`, using the
+credentials of your *existing* ESPHome device:
+
+```sh
+mise run config
+mise run compile
+```
+
+The `config` and `compile` tasks do **not** flash hardware. The `test`
+task runs `scripts/test.sh`, so it also requires Bash and a C++17 compiler
+(e.g. GCC/Clang). On Windows, use WSL for this workflow; mise itself supports
+Windows, but the existing shell-based host test requires a Unix-like toolchain.
+
+Mise pins the ESPHome release and uv version; transitive Python packages and
+the PlatformIO toolchain are not yet represented by a full dependency lock.
+The repository's refactored YAML has **not** yet been compiled or tested on
+the physical device.
+
 ## Run the reference configuration
 
 1. Check the eight connections in [hardware.md](docs/hardware.md).
@@ -37,10 +70,10 @@ protocol discoveries. We do not copy upstream source files.
    your **existing** Wi-Fi, API encryption and OTA credentials before flashing.
 3. If changing an existing ESPHome node, **merge changes into your existing
    YAML first**, rather than overwriting working credentials or OTA settings.
-4. From the repo root, run `esphome config esphome/olas-rf-gateway.yaml`.
+4. From the repo root, run `mise run config` (or the equivalent `esphome config` command).
 5. Inspect the configuration and flash only after validation; test a single
    speed change, then six speeds/off, then original remote reception.
-6. Run `./scripts/test.sh` for the standalone protocol unit tests.
+6. Run `mise run test` for the standalone protocol unit tests.
 
 The example contains an observed **device-specific** 24-bit fan ID and check
 XOR constant in `secrets.yaml.example`. Other Olas remotes require individual

@@ -3,19 +3,26 @@
 ## Host tests
 
 ```bash
-./scripts/test.sh
+mise install
+mise run test
 ```
+
+This task invokes `bash scripts/test.sh`. Bash and a C++17 compiler are
+required (use WSL on Windows). CI continues to run the same test script directly.
 
 Tests include: bit packing, ID/check validation, seq wrap, six speeds and off,
 RAW decode with unrelated leading pulses, repeated frames and truncated input.
 
-## ESPHome compile (not yet run for the refactored repository)
+## ESPHome validation/compile (not yet run for the refactored repository)
+
+Run with the ESPHome 2026.10.1 CLI installed by mise; these commands do not
+flash the device.
 
 ```bash
 cp esphome/secrets.yaml.example esphome/secrets.yaml
 # EDIT THE FILE: replace Wi-Fi, HA API and OTA credentials.
-esphome config esphome/olas-rf-gateway.yaml
-esphome compile esphome/olas-rf-gateway.yaml
+mise run config
+mise run compile
 ```
 
 ## Physical test matrix (must be performed after merging the refactor)

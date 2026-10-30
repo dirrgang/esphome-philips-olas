@@ -1,0 +1,22 @@
+# Development tools for the ESP32-S2/CC1101 ESPHome gateway.
+# ESPHome is installed as an isolated CLI, not into a project virtualenv.
+[tools]
+python = "3.13"
+uv = "0.12.10"
+"pypi:esphome" = "2026.10.1"
+
+[tasks.test]
+description = "Run the C++17 protocol tests (requires Bash and a C++ compiler)"
+run = "bash scripts/test.sh"
+
+[tasks.config]
+description = "Validate the ESPHome reference YAML (requires local secrets.yaml)"
+run = "esphome config esphome/olas-rf-gateway.yaml"
+
+[tasks.compile]
+description = "Compile the ESPHome firmware (requires local secrets.yaml)"
+run = "esphome compile esphome/olas-rf-gateway.yaml"
+
+[tasks.version]
+description = "Display the pinned ESPHome version"
+run = "esphome version"
