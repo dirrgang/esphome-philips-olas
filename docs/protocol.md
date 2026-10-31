@@ -64,7 +64,7 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 | Daylight white | `0x84` | Native TX and remote/HA sync user-confirmed |
 | Brightness up | `0x70` | RX only |
 | Brightness down | `0x28` | RX only |
-| Reverse direction | `0x50` | RX only; toggling semantics |
+| Reverse direction | `0x50` | Native TX and remote synchronization user-confirmed; toggle only |
 | Sleep / night mode | `0x30` | RX only |
 | Timer 1 h | `0x1C` | RX only |
 | Timer 3 h | `0x18` | RX only |
@@ -99,8 +99,13 @@ a new action with a new sequence; no automatic retry is added.
   Whether selections reset, toggle, cancel or replace timers is unknown. There
   is no countdown, automatic cancellation or assumed HA fan-OFF at expiry.
 
-All five codes remain **RX-evidenced, physically unverified for TX**. A successful
-build or TX-request log does not change that status. Sleep operation and timer
+Direction TX and physical reversal, plus original-remote synchronization, were
+user-confirmed on one test controller for PR #32 (`6e17499`) on 2026-10-31.
+Device logs show native `0x50` seq 3 and later remote `0x50` seq 2; no following
+TX request appears in the supplied excerpt. This is not an independent on-air
+measurement or absolute direction feedback. Sleep and all three timers remain
+**RX-evidenced, physically unverified for TX**. A successful build or TX-request
+log does not change their status. Sleep operation and timer
 expiry may invalidate the retained fan estimate without an observable RF event.
 Evidence and semantic questions belong to [#11](https://github.com/dirrgang/esphome-philips-olas/issues/11),
 [#12](https://github.com/dirrgang/esphome-philips-olas/issues/12) and

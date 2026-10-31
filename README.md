@@ -14,8 +14,9 @@ HA reflects commanded or overheard state, not independently confirmed telemetry.
 **Schlafmodus auslösen** sends the captured sleep opcode without reporting an
 active mode. The three **Timer** buttons report neither a running timer nor
 remaining time. Sleep exit conditions and timer reset/replacement/cancellation
-remain unknown. These five command codes have RX evidence; their TX and physical
-effects still need the [manual action tests](docs/verification.md#manual-stateless-action-tests).
+remain unknown. Direction toggle and original-remote synchronization are
+user-confirmed on one test controller. Sleep/timer TX and physical effects still
+need the [manual action tests](docs/verification.md#manual-stateless-action-tests).
 Remote action commands synchronize the shared sequence and are logged, without
 pressing buttons or changing estimated fan/light state. Sleep or an unobserved
 timer expiry can therefore leave the fan estimate stale.

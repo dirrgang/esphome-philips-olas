@@ -186,8 +186,10 @@ effects separately in #11/#12/#13 and the PR, using neutral device labels.
 | Remote action → HA fan/light → remote action through wraparound | Sequence stays shared; no button replay or RX echo | Unchanged fan/light waveforms; no second sender | Device accepts alternating controls; all six speeds/off and light regressions |
 | Restart and control-disabled profile | No restored action or invented mode state; buttons hidden with fan | No startup TX; disabled control rejects actions | No unintended action; retain original-remote operation |
 
-The five new TX paths and their physical effects remain unverified until these
-tests are performed. Do not infer a full timer timeout test from an immediate
+Direction reversal and remote synchronization have user-confirmed evidence in
+#11/PR #32 for one test controller. Sleep/timer TX and physical effects, full
+direction operating-condition checks and the remaining regressions still need
+the tests above. Do not infer a full timer timeout test from an immediate
 response. Sleep and timer expiry may leave HA's previous fan estimate stale.
 Mixed-client arbitration remains separate #24 work.
 
