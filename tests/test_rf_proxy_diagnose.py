@@ -261,14 +261,30 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         self.args.post_rx = True
         self.args.timeout = 2
 
+        # Emit only when the post-prompt receiver waits. A 1 ms timer can fire
+        # before the prompt's wait_for resumes on Windows, then be drained as old RX.
+        test = self
+
+        class PostRxQueue(asyncio.Queue):
+            armed = False
+
+            async def get(self):
+                if self.armed:
+                    self.armed = False
+                    test.emit(0xBC, 2)
+                return await super().get()
+
+        queue = PostRxQueue()
+
         async def prompt(text):
             if "Optional RX" in text:
-                asyncio.get_running_loop().call_later(0.001, self.emit, 0xBC, 2)
+                queue.armed = True
                 return ""
             return "SEND"
 
         with patch.object(rf, "terminal_line", side_effect=prompt), \
-                patch.object(rf, "require_terminal"):
+                patch.object(rf, "require_terminal"), \
+                patch.object(rf.asyncio, "Queue", return_value=queue):
             await rf.run(self.args, "fake-key")
         self.client.radio_frequency_transmit_raw_timings.assert_called_once()
         self.client.disconnect.assert_awaited_once()

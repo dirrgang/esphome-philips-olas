@@ -72,6 +72,13 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 
 **Note:** The upstream command table does not yet include neutral white `0x64`.
 
+The gateway sends light power and the three white presets through the same
+41-bit/four-copy path and sequence as the fan. Preset RX updates the discrete
+selection only; its effect on power is not inferred. Encoding/host validation
+does not establish physical TX success. Only LIGHT ON via the generic proxy
+has physical light-TX evidence in [#8](https://github.com/dirrgang/esphome-philips-olas/issues/8).
+Native light/preset TX still needs physical verification.
+
 ## Synthetic example
 
 - Test fixture ID `0x654321`, check XOR `0xA7`, speed 1, sequence 0:

@@ -2,11 +2,21 @@
 
 An independent ESPHome gateway for Philips Olas ceiling fans, using an
 ESP32-S2 Mini and a CC1101 at 434 MHz ASK/OOK. It exposes a native six-speed
-Home Assistant fan, receives original-remote commands and includes passive
+Home Assistant fan, independent on/off light and three discrete white presets,
+receives original-remote commands and includes passive
 RF discovery. It is not an official Philips/Signify integration.
 
-Light, dimming, direction, sleep and timers are not implemented as entities.
+Dimming, direction, sleep and timers are not implemented as entities.
 HA reflects commanded or overheard state, not independently confirmed telemetry.
+
+The light has no brightness or continuous Kelvin control. **Weißton** offers
+Warmweiß, Neutralweiß and Tageslichtweiß; choosing one sends only that preset,
+without an extra power command. Presets do not establish whether the light is on.
+Remote power/preset commands update the corresponding entities without RF echo.
+The preset starts unknown; the binary light starts OFF as an assumed UI default,
+even if the physical lamp is on. Neither entity confirms state after RF loss,
+missed commands or a restart. Startup/restoration sends no Olas RF. These new
+entity paths require the [manual hardware checks](docs/verification.md).
 
 Work items and execution evidence are maintained in
 [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues) and PRs;
@@ -139,10 +149,13 @@ Store the confirmed values only in that profile's private `secrets.yaml`, set
 `olas_control_enabled: "true"` and `olas_fan_internal: "false"`, then validate,
 compile, upload and perform the [hardware smoke test](docs/verification.md).
 
-With control disabled, normal fan RX-state updates/TX are gated, the fan is
-hidden and RF proxies are excluded. With control enabled, the regular fan and
-RF proxies remain available alongside learning. Other fans need their own
-capture and compatibility test; no universal check constant is assumed.
+With control disabled, normal fan/light RX-state updates and Olas TX are gated,
+and RF proxies are excluded. Light controls inherit `olas_fan_internal`; optional
+`olas_light_internal` can hide them separately. With control enabled, fan, light
+and RF proxies remain available alongside learning. Use one RF client at a time
+until [#24](https://github.com/dirrgang/esphome-philips-olas/issues/24) stress and
+failure tests are complete; the shared helper adds no custom queue. Other fans
+need their own capture and compatibility test; no universal check constant is assumed.
 
 ## Documentation
 
