@@ -57,7 +57,7 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 | Fan speed 4 | `0x20` | RX and TX physically tested |
 | Fan speed 5 | `0x80` | RX and TX physically tested |
 | Fan speed 6 | `0x8C` | RX and TX physically tested |
-| Light on | `0x7C` | RX only |
+| Light on | `0x7C` | RX and generic RF-proxy TX physically verified (2026-10-31; #23) |
 | Light off | `0xBC` | RX only |
 | Warm white | `0x6C` | RX only |
 | **Neutral white** | **`0x64`** | **RX only, newly identified** |

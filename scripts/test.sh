@@ -14,3 +14,6 @@ fi
 "${COMPILER[@]}" -std=c++17 -Wall -Wextra -Werror -pedantic -I"$ROOT/esphome/include" \
   "$ROOT/tests/test_protocol.cpp" -o "$TMP/olas-tests"
 "$TMP/olas-tests"
+
+# Synthetic RF proxy diagnostics; API network calls are fully mocked.
+python3 -m unittest discover -s "$ROOT/tests" -p 'test_rf_proxy_diagnose.py' -v

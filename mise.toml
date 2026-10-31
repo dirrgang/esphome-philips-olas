@@ -24,6 +24,10 @@ run = "esphome compile esphome/validation.yaml"
 description = "Display the pinned ESPHome version"
 run = "esphome version"
 
+[tasks.rf-diagnose]
+description = "Interactive generic RF-proxy diagnostic; receive-only by default"
+run = "uv run --script scripts/rf_proxy_diagnose.py"
+
 [tasks.test-profiles]
 description = "Test private profile isolation and OTA/serial target selection"
 run = "python -m unittest discover -s tests -p test_profiles.py"

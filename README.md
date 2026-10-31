@@ -35,6 +35,25 @@ Host tests require Bash and C++17. On Windows, install Git for Windows in its
 standard location for Git Bash; mise supplies Zig 0.15.2. Unix uses GCC/Clang.
 Transitive Python packages and firmware tools do not yet have a full lockfile.
 
+## Generic RF proxy diagnostic (experimental)
+
+The receive-only diagnostic uses ESPHome's encrypted native API and does not
+modify firmware. It requires an interactive terminal and the intended device's
+verified 24-bit RF ID and 8-bit check XOR. Use the IP from your private profile;
+never commit private identifiers, keys, or raw RF captures:
+
+```sh
+mise run rf-diagnose -- <gateway-ip> --fan-id <id-hex> --check-xor <xor-hex>
+```
+
+To test a **single LIGHT ON transmit** on an already configured gateway,
+append `--tx-light-on --post-rx`; a fresh original-remote LIGHT OFF and an
+explicit interactive `SEND` confirmation are required. No CI or agent may
+transmit. See [verification](docs/verification.md) and
+[PoC #23](https://github.com/dirrgang/esphome-philips-olas/issues/23).
+The API is experimental; these tests do not establish a stock HA receive feed
+or mixed-client TX arbitration.
+
 ## Private hardware workspace
 
 Create one private profile per installation from the generic template:

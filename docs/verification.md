@@ -57,6 +57,45 @@ in the relevant GitHub issue/PR and keep raw captures private. Only then fill
 the intended device's RF settings, enable RF control
 and expose the fan again. No persistent pairing or TX validation is claimed.
 
+## Generic ESPHome RF-proxy diagnostic — #23
+
+Independent of the existing ESPHome Olas fan entity, the optional receive-only
+script subscribes to native-API raw RF events and decodes the known 41-bit Olas
+protocol. It uses an isolated pinned `aioesphomeapi` Python script dependency,
+no OTA, no network access during host-only unit tests, and requires an interactive
+terminal to read the encryption key without echoing it.
+
+```bash
+mise run rf-diagnose -- <gateway-ip> --fan-id <id-hex> --check-xor <xor-hex>
+# Deliberate physical experiment only, with suitable antenna and CC1101 at 3.3V:
+mise run rf-diagnose -- <gateway-ip> --fan-id <id-hex> --check-xor <xor-hex> --tx-light-on --post-rx
+```
+
+Keep actual ID, XOR and API key in the ignored profile or private working notes,
+not in committed examples. The script requires remote LIGHT OFF as a fresh
+sequence baseline, an explicit terminal `SEND`, then asks for physical
+verification and optional independent post-TX remote LIGHT OFF RX.
+The API request itself does not acknowledge over-air delivery.
+
+**Observed on deployed ESPHome 2026.10.1 firmware, 2026-10-31 (#23):**
+an independent API client decoded four valid Olas frames per physical remote
+press from 385-timing batches, sent LIGHT ON via the proxy and the user
+**physically confirmed the light switched on**. The original remote subsequently
+switched it off and a post-TX raw RX event decoded correctly. This establishes
+basic proxy RX/TX feasibility, **not** reliable concurrent client arbitration,
+native HA receiver support, multiple real device addresses, or physical testing
+of the repository's refactored YAML. See #24 and #27.
+
+### Native Windows console compatibility
+
+For the mandatory interactive `SEND` prompt, native Windows uses an
+asynchronous `msvcrt` key poller instead of `asyncio.add_reader()` (unsupported
+by Windows ProactorEventLoop, and the Windows selector loop cannot watch console
+handles). The prompt remains bounded and rejects a noninteractive stdin;
+there is no background input thread left running after timeout. The same
+script uses `add_reader()` in POSIX terminals. Host tests run on Linux and
+native Windows; physical RF TX was verified by the user on Linux only.
+
 ## ESPHome validation/compile
 
 Run with the ESPHome 2026.10.1 CLI installed by mise; these commands do not
