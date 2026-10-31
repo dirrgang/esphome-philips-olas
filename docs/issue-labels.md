@@ -37,21 +37,12 @@ specific issue substantially.
   not necessarily a current blocker.
 - Use `needs:hardware` when actual on-device evidence is the **next required
   action**, not simply because an eventual feature will need a smoke test.
-- Use `needs:decision` where the platform or design owner is unresolved
-  (currently the HA-vs-ESPHome decision tracked in #27).
+- Use `needs:decision` where the platform or design owner is unresolved;
+  link the relevant decision issue.
 - A GitHub PR number, issue state (open/closed), assignee, or GitHub Project
   status is **not** duplicated by another permanent label.
 - The taxonomy intentionally does not auto-apply or auto-remove issue labels:
   priority and blocker decisions require context and review.
-
-## Current architecture gate
-
-- [#22](../issues/22) is the shared RF gateway architecture epic.
-- [#23](../issues/23), [#24](../issues/24) and [#25](../issues/25) gather
-  experimental evidence.
-- [#27](../issues/27) records the architecture decision.
-- [#16](../issues/16) and [PR #21](../pull/21) are conditional ESPHome-native
-  implementation work, not the already-decided final architecture.
 
 The sync workflow **only manages label metadata**; it never closes issues,
 changes their assignments or removes unspecified labels.

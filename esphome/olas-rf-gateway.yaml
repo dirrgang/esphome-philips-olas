@@ -1,17 +1,29 @@
-# Reference configuration reconstructed from tested stages on ESPHome 2026.10.1.
+# ESPHome 2026.10.1 gateway; use a private profile for individual installations.
 # Do NOT flash blindly over an existing HA device: preserve your API/OTA credentials,
 # existing network configuration, and device-specific settings.
-# Copy secrets.yaml.example to secrets.yaml and edit it first.
+# Include from a profile; resolve all !secret values in that profile.
 
 substitutions:
-  olas_fan_id: !secret olas_fan_id
-  olas_check_xor: !secret olas_check_xor
+  olas_protocol_header: include/olas_protocol.h
+  olas_control_enabled: "true"
+  olas_fan_internal: "false"
+  olas_fan_id: "0x000000"
+  olas_check_xor: "0x00"
+  olas_node_name: olas-rf-gateway
+  olas_friendly_name: Olas RF Gateway
+  olas_fan_name: Philips Olas
+
+packages:
+  learning: !include packages/olas-learning.yaml
+  rf_proxy: !include
+    file: packages/olas-rf-proxy.yaml
+    condition: ${olas_control_enabled}
 
 esphome:
-  name: olas-rf-gateway
-  friendly_name: olas-rf-gateway
+  name: ${olas_node_name}
+  friendly_name: ${olas_friendly_name}
   includes:
-    - include/olas_protocol.h
+    - ${olas_protocol_header}
 
 esp32:
   variant: esp32s2
@@ -23,18 +35,18 @@ logger:
 
 api:
   encryption:
-    key: !secret olas_rf_gateway__encryption_key
+    key: ${olas_api_encryption_key}
 
 ota:
   - platform: esphome
     encryption:
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  ssid: ${olas_wifi_ssid}
+  password: ${olas_wifi_password}
   ap:
-    ssid: olas-rf-gateway Fallback Hotspot
-    password: !secret olas_rf_gateway__ap_password
+    ssid: ${olas_node_name} Fallback
+    password: ${olas_fallback_ap_password}
 
 spi:
   clk_pin: GPIO7
@@ -78,6 +90,29 @@ remote_receiver:
   on_raw:
     then:
       - lambda: |-
+          if (id(olas_learning_active)) {
+            static bool have_learn_last = false;
+            static uint64_t learn_last_frame = 0;
+            static uint32_t learn_last_logged_ms = 0;
+            size_t cursor = 0;
+            olas::Frame candidate;
+            while (olas::next_raw_candidate(x.data(), x.size(), cursor, candidate)) {
+              const uint32_t now = millis();
+              if (have_learn_last && candidate.raw == learn_last_frame &&
+                  uint32_t(now - learn_last_logged_ms) < 400u)
+                continue;
+              have_learn_last = true;
+              learn_last_frame = candidate.raw;
+              learn_last_logged_ms = now;
+              ESP_LOGI("olas.learn",
+                       "RF candidate id=0x%06X function=0x%02X seq=%u check=0x%02X xor_candidate=0x%02X",
+                       unsigned(candidate.fan_id), unsigned(candidate.function),
+                       unsigned(candidate.sequence), unsigned(candidate.check),
+                       unsigned(olas::candidate_check_xor(candidate)));
+            }
+          }
+          if (!${olas_control_enabled})
+            return;  // No configured-state updates while the RF target is unknown.
           constexpr uint32_t FAN_ID = ${olas_fan_id};
           constexpr uint8_t CHECK_XOR = ${olas_check_xor};
           olas::Frame frame;
@@ -115,25 +150,16 @@ remote_receiver:
           id(olas_fan).publish_state();
           id(olas_rf_update) = false;
 
-radio_frequency:
-  - platform: ir_rf_proxy
-    name: "RF Gateway Transmitter"
-    frequency: 434MHz
-    remote_transmitter_id: olas_tx
-  - platform: ir_rf_proxy
-    name: "RF Gateway Receiver"
-    frequency: 434MHz
-    remote_receiver_id: rf_rx
-
 fan:
   - platform: template
     id: olas_fan
-    name: "Philips Olas"
+    name: ${olas_fan_name}
+    internal: ${olas_fan_internal}
     speed_count: 6
     on_state:
       then:
         - lambda: |-
-            if (id(olas_rf_update))
+            if (!${olas_control_enabled} || id(olas_rf_update))
               return;
 
             int speed = x->state ? x->speed : 0;

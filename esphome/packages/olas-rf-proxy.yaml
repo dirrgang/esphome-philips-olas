@@ -1,0 +1,10 @@
+# Existing native RF proxies, included only when RF control is enabled.
+radio_frequency:
+  - platform: ir_rf_proxy
+    name: "RF Gateway Transmitter"
+    frequency: 434MHz
+    remote_transmitter_id: olas_tx
+  - platform: ir_rf_proxy
+    name: "RF Gateway Receiver"
+    frequency: 434MHz
+    remote_receiver_id: rf_rx

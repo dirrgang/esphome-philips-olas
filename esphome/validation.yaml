@@ -1,0 +1,15 @@
+# Synthetic build fixture, not an installation profile. Never flash this file.
+packages:
+  gateway: !include olas-rf-gateway.yaml
+
+substitutions:
+  olas_node_name: olas-validation
+  olas_wifi_ssid: synthetic-test-network
+  olas_wifi_password: synthetic-test-password
+  olas_api_encryption_key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
+  olas_fallback_ap_password: synthetic-ap-password
+  olas_fan_id: "0x654321"
+  olas_check_xor: "0xA7"
+
+esphome:
+  build_path: build/olas-rf-gateway

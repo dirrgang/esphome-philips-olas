@@ -40,16 +40,29 @@ struct Frame {
   uint64_t raw{0};
 };
 
-constexpr bool decode_frame(uint64_t raw, uint32_t expected_id, uint8_t check_xor,
-                            Frame &out) {
+// Structural parsing only: an unknown device's check rule is not validated.
+constexpr bool unpack_candidate(uint64_t raw, Frame &out) {
   if (raw > MASK_FRAME || (raw & 1u) != 0u)
     return false;
   const auto id = static_cast<uint32_t>((raw >> 17) & MASK_ID);
   const auto command = static_cast<uint8_t>((raw >> 9) & 0xFFu);
   const auto check = static_cast<uint8_t>((raw >> 1) & 0xFFu);
-  if (id != (expected_id & MASK_ID) || check != checksum(command, check_xor))
-    return false;
   out = {id, command, function_code(command), sequence_number(command), check, raw};
+  return true;
+}
+
+constexpr uint8_t candidate_check_xor(const Frame &frame) {
+  return static_cast<uint8_t>(frame.command ^ frame.check);
+}
+
+constexpr bool decode_frame(uint64_t raw, uint32_t expected_id, uint8_t check_xor,
+                            Frame &out) {
+  Frame candidate;
+  if (!unpack_candidate(raw, candidate) ||
+      candidate.fan_id != (expected_id & MASK_ID) ||
+      candidate.check != checksum(candidate.command, check_xor))
+    return false;
+  out = candidate;
   return true;
 }
 
@@ -75,13 +88,15 @@ constexpr uint8_t function_for_speed(int speed) {
 
 // A single raw receiver batch can contain multiple copies of a 41-bit frame.
 // Marks are positive, spaces are negative, in microseconds. This intentionally
-// looks for *one* complete valid frame anywhere in the batch.
-inline bool decode_raw(const int32_t *timings, size_t size, uint32_t expected_id,
-                       uint8_t check_xor, Frame &out) {
-  if (timings == nullptr || size < 84)
+// scans complete structural candidates, without validating any device/check.
+// Start cursor at zero; repeated calls visit every candidate in the batch.
+inline bool next_raw_candidate(const int32_t *timings, size_t size, size_t &cursor,
+                               Frame &out) {
+  constexpr size_t FRAME_PULSES = 84;
+  if (timings == nullptr || size < FRAME_PULSES || cursor > size)
     return false;
 
-  for (size_t start = 0; start + 84 <= size; ++start) {
+  for (size_t start = cursor; start <= size - FRAME_PULSES; ++start) {
     const auto sync_mark = timings[start];
     const auto sync_space = timings[start + 1];
     if (sync_mark < 6500 || sync_mark > 8200 || sync_space < -1450 || sync_space > -750)
@@ -100,7 +115,23 @@ inline bool decode_raw(const int32_t *timings, size_t size, uint32_t expected_id
       }
       raw = (raw << 1) | static_cast<uint64_t>(one);
     }
-    if (valid && decode_frame(raw, expected_id, check_xor, out))
+    if (valid && unpack_candidate(raw, out)) {
+      cursor = start + FRAME_PULSES;
+      return true;
+    }
+  }
+  cursor = size;
+  return false;
+}
+
+// Normal control still requires the configured device and check XOR; merely
+// looking like an Olas frame is insufficient. Return the first matching frame.
+inline bool decode_raw(const int32_t *timings, size_t size, uint32_t expected_id,
+                       uint8_t check_xor, Frame &out) {
+  size_t cursor = 0;
+  Frame candidate;
+  while (next_raw_candidate(timings, size, cursor, candidate)) {
+    if (decode_frame(candidate.raw, expected_id, check_xor, out))
       return true;
   }
   return false;

@@ -13,13 +13,41 @@ shell = "bash -c"
 run = "bash scripts/test.sh"
 
 [tasks.config]
-description = "Validate the ESPHome reference YAML (requires local secrets.yaml)"
-run = "esphome config esphome/olas-rf-gateway.yaml"
+description = "Validate the shared gateway with synthetic configuration"
+run = "esphome config esphome/validation.yaml"
 
 [tasks.compile]
-description = "Compile the ESPHome firmware (requires local secrets.yaml)"
-run = "esphome compile esphome/olas-rf-gateway.yaml"
+description = "Compile the shared gateway with synthetic configuration; never flash"
+run = "esphome compile esphome/validation.yaml"
 
 [tasks.version]
 description = "Display the pinned ESPHome version"
 run = "esphome version"
+
+[tasks.test-profiles]
+description = "Test private profile isolation and OTA/serial target selection"
+run = "python -m unittest discover -s tests -p test_profiles.py"
+
+[tasks.config-local]
+description = "Validate a private local gateway profile"
+run = "python scripts/local.py config"
+
+[tasks.compile-local]
+description = "Compile a private local gateway profile; does not upload"
+run = "python scripts/local.py compile"
+
+[tasks.init-local]
+description = "Create an ignored hardware-test profile; preserve existing files"
+run = "python scripts/local.py init"
+
+[tasks.logs-local]
+description = "Read logs from a private hardware-test profile"
+run = "python scripts/local.py logs"
+
+[tasks.upload-local]
+description = "Upload the compiled private profile to real hardware"
+run = "python scripts/local.py upload"
+
+[tasks.install-local]
+description = "Compile a selected private profile, then install via its OTA/serial target"
+run = "python scripts/local.py install"

@@ -28,12 +28,19 @@ bits 40–17    16–11           10–9        8–1           0
 
 - Sequence cycles downward modulo 4: 2 → 1 → 0 → 3 → 2.
 - All frame copies during one physical press use the same sequence.
-- Observed local device ID: `0xAA8C03`.
-- Observed local integrity check: `check = command XOR 0x25`.
+- An independently observed remote used `check = command XOR 0x25`.
 - Upstream firmware currently implements `command XOR 0x5B` for its device.
-- **Unproven hypothesis:** local `0x25` = `0xAA XOR 0x8C XOR 0x03`, so the
-  check might be derived from all ID bytes. More than one real pairing is
-  required to distinguish this from device-specific fixed constants.
+- **Unproven hypothesis:** XOR of the three ID bytes matched the observed
+  constant for one remote. This does not establish a general derivation rule;
+  keep the check constant configurable and verify each pairing independently.
+- Receive-only discovery can parse complete structural candidates without an
+  expected ID/check. Its `xor_candidate = command XOR received_check` is only
+  an observation from that frame, not an integrity check or pairing result.
+  Verify a consistent candidate across different commands and sequences for
+  each intended remote before configuring control. Compatibility is per target.
+- Discovery execution evidence is recorded in
+  [GitHub issue #15](https://github.com/dirrgang/esphome-philips-olas/issues/15);
+  a consistent capture does not establish a universal derivation rule.
 - This protocol is not authenticated or encrypted. Do not publish captures of
   personal remotes if their IDs matter to your threat model.
 
@@ -65,11 +72,11 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 
 **Note:** The upstream command table does not yet include neutral white `0x64`.
 
-## Examples from local captures
+## Synthetic example
 
-- `ID=AA8C03`, speed 1, `seq=0`: `command=0x40`, `check=0x65`.
-- `ID=AA8C03`, speed 2, `seq=1`: `command=0xAD`, `check=0x88`.
-- The test transmitter successfully sent speed 1 using the local checksum.
+- Test fixture ID `0x654321`, check XOR `0xA7`, speed 1, sequence 0:
+  `command=0x40`, `check=0xE7`, packed frame `0xCA864281CE`.
+- These values are synthetic; real identifiers and captures remain private.
 
 ## Interpreting an ESPHome RAW log
 
