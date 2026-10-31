@@ -1,0 +1,19 @@
+# Copied to esphome/local/<profile>/gateway.yaml by mise run init-local.
+packages:
+  gateway: !include ../../olas-rf-gateway.yaml
+
+# Secrets are deliberately resolved HERE, never inside the shared package.
+substitutions:
+  olas_protocol_header: ../../include/olas_protocol.h
+  olas_node_name: olas-gateway-__PROFILE__
+  olas_friendly_name: Olas __PROFILE__
+  olas_fan_name: Philips Olas
+  olas_wifi_ssid: !secret wifi_ssid
+  olas_wifi_password: !secret wifi_password
+  olas_api_encryption_key: !secret api_encryption_key
+  olas_fallback_ap_password: !secret fallback_ap_password
+  olas_fan_id: !secret olas_fan_id
+  olas_check_xor: !secret olas_check_xor
+  # Enable only after learning/verifying this profile's RF target.
+  olas_control_enabled: "false"
+  olas_fan_internal: "true"

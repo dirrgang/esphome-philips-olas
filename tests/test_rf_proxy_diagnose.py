@@ -14,15 +14,15 @@ rf = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = rf
 spec.loader.exec_module(rf)
 
-ID, XOR = 0xAA8C03, 0x25
+ID, XOR = 0x654321, 0xA7
 
 
 class CodecTests(unittest.TestCase):
     def test_cpp_reference_vector_and_bit_order(self):
         # Same fixed vector as tests/test_protocol.cpp, not a round-trip alone.
         raw = rf.encode_frame(ID, 0x40, 0, XOR)
-        self.assertEqual(raw, 0x155180680CA)
-        self.assertEqual(rf.checksum(0x40, XOR), 0x65)
+        self.assertEqual(raw, 0xCA864281CE)
+        self.assertEqual(rf.checksum(0x40, XOR), 0xE7)
         timings = rf.encode_timings(raw)
         self.assertEqual(timings[:8], [7400, -1090, 730, -340, 340, -730, 730, -340])
         self.assertEqual(timings[-2:], [340, -730])

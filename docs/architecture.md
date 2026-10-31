@@ -1,4 +1,4 @@
-# Architecture and next design boundary
+# Architecture
 
 ## Present architecture
 
@@ -13,6 +13,14 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
   decrements the local 2-bit sequence counter.
 - RX `publish_state()` can trigger `on_state`; `olas_rf_update` prevents echo.
 - Physical remote presses update the *commanded/observed* HA state.
+- Passive learning uses the same RX callback with an opt-in 60-second window;
+  unknown frames remain candidates, never automatic pairings or TX triggers.
+- Per-installation overlays and artifacts live under ignored `esphome/local/`;
+  public code and synthetic host fixtures are independent of those files.
+- Each profile resolves its own secrets and passes substitutions to the same
+  shared gateway package. That package never performs a `!secret` lookup.
+  Profile-local target files select IP/OTA or serial deployment independently
+  of the firmware configuration. Builds are isolated inside each profile.
 
 ## Why code is separated this way
 
@@ -22,18 +30,9 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
 - We deliberately avoid copying upstream's ESP8266 driver or web UI because
   ESPHome already manages Wi-Fi, OTA, API, CC1101 and GPIOs.
 
-## Recommended future evolution
-
-1. First validate the refactored config on actual hardware.
-2. Add explicit light on/off and color presets with discrete independent
-   hardware tests, preserving existing fan behaviour.
-3. Investigate long-press dimming before claiming absolute brightness.
-4. Introduce a shared action/helper for transmission if further entities
-   require it. Avoid duplicate frame-encoding lambdas.
-5. Once behaviour is stable, consider a dedicated ESPHome external component
-   (native `fan`/`light`, automated discovery of supported RF configurations).
-6. Keep the check-XOR constant configurable until cross-device evidence proves
-   a general formula.
+Architecture proposals and implementation sequencing are tracked in
+[GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues).
+This document describes the implementation in this checkout.
 
 ## Known modelling traps
 
@@ -44,4 +43,5 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
   missed RF; avoid advertising an absolute state without reconciliation.
 - **Duplicate RF bursts:** suppress repeated frames but don't suppress a
   genuinely new press of the same button.
-- **Simultaneous remotes and ESP32:** sequence resynchronization needs tests.
+- **Simultaneous remotes and ESP32:** each received matching frame advances
+  the local next-sequence value; sequence wrap is not authentication.

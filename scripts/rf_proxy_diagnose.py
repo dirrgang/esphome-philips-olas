@@ -309,11 +309,11 @@ def positive_seconds(text):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("host", nargs="?", default="192.168.20.157")
+    parser.add_argument("host", help="ESPHome gateway IP address or hostname")
     parser.add_argument("--port", type=int, default=6053)
-    parser.add_argument("--fan-id", type=number, default=0xAA8C03,
-                        help="expected 24-bit Olas ID (default: observed local device)")
-    parser.add_argument("--check-xor", type=number, default=0x25,
+    parser.add_argument("--fan-id", type=number, required=True,
+                        help="verified 24-bit Olas device ID (required; keep private)")
+    parser.add_argument("--check-xor", type=number, required=True,
                         help="device-specific XOR; no automatic derivation from ID")
     parser.add_argument("--receiver", help="advertised DEVICE_ID:OBJECT_ID if ambiguous")
     parser.add_argument("--transmitter", help="advertised DEVICE_ID:OBJECT_ID if ambiguous")

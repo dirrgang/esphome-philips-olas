@@ -1,38 +1,28 @@
-# ESPHome Philips Olas (work in progress)
+# ESPHome Philips Olas
 
-An ESP32-S2 + CC1101 gateway that sends and receives Philips Olas ceiling-fan
-433/434 MHz RF commands, with a native Home Assistant `fan` entity.
+An independent ESPHome gateway for Philips Olas ceiling fans, using an
+ESP32-S2 Mini and a CC1101 at 434 MHz ASK/OOK. It exposes a native six-speed
+Home Assistant fan, receives original-remote commands and includes passive
+RF discovery. It is not an official Philips/Signify integration.
 
-**Status (2026-10-30):** Fan power and six speeds were tested successfully on
-real hardware, from both Home Assistant (TX) and the original remote (RX). The
-pure C++ protocol module and the project-formatted YAML configuration in this
-repository were **reconstructed/refactored** from the working experiment;
-they pass host tests but have **not yet been recompiled/flashed together**.
-Light, temperature, dimming, reversal, sleep and timers are documented or
-captured but **not implemented as entities**.
+Light, dimming, direction, sleep and timers are not implemented as entities.
+HA reflects commanded or overheard state, not independently confirmed telemetry.
 
-The project is **independent**, not an official Philips/Signify integration,
-and is not a fork of the original standalone firmware.
-
-## Why a separate repository?
-
-The upstream [kercle/philips-olas-remote](https://github.com/kercle/philips-olas-remote)
-provides an ESP8266/PlatformIO standalone controller and extensive protocol
-research under the MIT license. This repository instead targets the built-in
-ESPHome CC1101 driver, ESPHome native API and Home Assistant entities. We credit
-upstream and plan small, focused upstream contributions for genuinely reusable
-protocol discoveries. We do not copy upstream source files.
+Work items and execution evidence are maintained in
+[GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues) and PRs;
+the [roadmap issue](https://github.com/dirrgang/esphome-philips-olas/issues/19)
+links the related work. This repository documents behaviour and procedures.
 
 ## Hardware
 
-- LOLIN-style **ESP32-S2 Mini** (USB, Wi-Fi)
-- **CC1101 433 MHz ASK/OOK** module with 433 MHz antenna (3.3 V)
-- Eight wires; see [docs/hardware.md](docs/hardware.md)
-- ESPHome **2026.10.1** was the tested firmware version
+- ESP32-S2 Mini, using ESP-IDF.
+- CC1101 433 MHz module with suitable antenna, powered at **3.3 V**.
+- Wiring: [docs/hardware.md](docs/hardware.md).
+- Tested ESPHome release: **2026.10.1**.
 
-## Development setup with mise
+## Development
 
-Install [mise](https://mise.jdx.dev/) once, then from the repository root:
+Install [mise](https://mise.jdx.dev/), then run from the repository root:
 
 ```sh
 mise install
@@ -40,58 +30,132 @@ mise run version
 mise run test
 ```
 
-`mise.toml` selects Python 3.13, uv 0.12.10 and **ESPHome 2026.10.1**
-installed as an isolated PyPI CLI via mise's `pypi:` backend. No global
-`pip install` and no project Python virtual environment are needed.
+Mise selects Python 3.13, uv 0.12.10 and an isolated ESPHome 2026.10.1 CLI.
+Host tests require Bash and C++17. On Windows, install Git for Windows in its
+standard location for Git Bash; mise supplies Zig 0.15.2. Unix uses GCC/Clang.
+Transitive Python packages and firmware tools do not yet have a full lockfile.
 
-To check or compile the firmware, first create your **local untracked**
-`esphome/secrets.yaml` from `esphome/secrets.yaml.example`, using the
-credentials of your *existing* ESPHome device:
+## Generic RF proxy diagnostic (experimental)
+
+The receive-only diagnostic uses ESPHome's encrypted native API and does not
+modify firmware. It requires an interactive terminal and the intended device's
+verified 24-bit RF ID and 8-bit check XOR. Use the IP from your private profile;
+never commit private identifiers, keys, or raw RF captures:
 
 ```sh
-mise run config
-mise run compile
+mise run rf-diagnose -- <gateway-ip> --fan-id <id-hex> --check-xor <xor-hex>
 ```
 
-The `config` and `compile` tasks do **not** flash hardware. The `test`
-task runs `scripts/test.sh`, so it also requires Bash and a C++17 compiler
-(e.g. GCC/Clang). On Windows, use WSL for this workflow; mise itself supports
-Windows, but the existing shell-based host test requires a Unix-like toolchain.
+To test a **single LIGHT ON transmit** on an already configured gateway,
+append `--tx-light-on --post-rx`; a fresh original-remote LIGHT OFF and an
+explicit interactive `SEND` confirmation are required. No CI or agent may
+transmit. See [verification](docs/verification.md) and
+[PoC #23](https://github.com/dirrgang/esphome-philips-olas/issues/23).
+The API is experimental; these tests do not establish a stock HA receive feed
+or mixed-client TX arbitration.
 
-Mise pins the ESPHome release and uv version; transitive Python packages and
-the PlatformIO toolchain are not yet represented by a full dependency lock.
-The repository's refactored YAML has **not** yet been compiled or tested on
-the physical device.
+## Private hardware workspace
 
-## Run the reference configuration
+Create one private profile per installation from the generic template:
 
-1. Check the eight connections in [hardware.md](docs/hardware.md).
-2. Copy `esphome/secrets.yaml.example` to `esphome/secrets.yaml` and fill in
-   your **existing** Wi-Fi, API encryption and OTA credentials before flashing.
-3. If changing an existing ESPHome node, **merge changes into your existing
-   YAML first**, rather than overwriting working credentials or OTA settings.
-4. From the repo root, run `mise run config` (or the equivalent `esphome config` command).
-5. Inspect the configuration and flash only after validation; test a single
-   speed change, then six speeds/off, then original remote reception.
-6. Run `mise run test` for the standalone protocol unit tests.
+```sh
+mise run init-local -- --profile site-a
+mise run init-local -- --profile site-b
+# Edit each profile's gateway.yaml, secrets.yaml and targets.toml.
+mise run config-local -- --profile site-a
+mise run compile-local -- --profile site-a
+```
 
-The example contains an observed **device-specific** 24-bit fan ID and check
-XOR constant in `secrets.yaml.example`. Other Olas remotes require individual
-capture and may use a different check value. No generic pairing is implemented.
+`init-local` preserves existing files. The entire **`esphome/local/`** directory
+is gitignored: keep profiles, secrets, captures, logs, firmware and supplied
+device exports there. Only generic templates belong in the public repository.
+Each `esphome/local/<profile>/` contains its own:
+
+- `gateway.yaml`: includes the shared gateway; supplies node/friendly/fan names,
+  RF control settings and optional hardware/network/debug overrides.
+- `secrets.yaml`: Wi-Fi, API/AP credentials and this target's fan ID/check.
+- `targets.toml`: named upload/log destinations (IP/host or serial port).
+- `.esphome/`: separate build/cache output for this profile.
+
+All profiles include the same `esphome/olas-rf-gateway.yaml`; its protocol code
+has no location-specific data or `!secret` lookups. Secrets are resolved explicitly
+in the private profile and passed into that shared package. Do not create
+`esphome/secrets.yaml`. Existing files there should be moved into the appropriate
+private profile. New profiles disable control and hide the fan while leaving
+learning available. The firmware currently controls **one fan ID per profile**.
+
+Before updating an existing device, compare the profile with its actual live
+configuration and preserve its Wi-Fi, API and encrypted OTA access. Compilation
+does not install firmware. Configure destinations in that profile's `targets.toml`:
+
+```toml
+[targets.ota]
+device = "192.0.2.10" # Actual IP/host, or "OTA" to resolve the profile's node name.
+
+[targets.usb]
+device = "COM7" # Or /dev/ttyACM0; use the currently enumerated serial port.
+```
+
+Build and install the selected profile over the chosen transport:
+
+```sh
+mise run install-local -- --profile site-a --target ota
+mise run install-local -- --profile site-b --target usb
+mise run logs-local -- --profile site-a --target ota
+```
+
+Network installation uses ESPHome OTA with that profile's encryption credentials;
+logs use the encrypted native API. USB installation uses ESPHome's serial uploader;
+some boards require entering the bootloader manually. `install-local` only uploads
+after a successful build. `upload-local` is available for an already compiled
+profile; `config-local` and `compile-local` never upload.
+
+CLI selections override defaults in the ignored `mise.local.toml`:
+
+```toml
+[env]
+OLAS_PROFILE = "site-a"
+OLAS_TARGET = "ota"
+```
+
+Without a selection the default profile is `default`, target `ota`.
+Machine-specific tool-cache overrides also belong in `mise.local.toml`.
+`mise run config` and `mise run compile` validate/build `esphome/validation.yaml`,
+a synthetic fixture using the same shared gateway. **Never install that fixture.**
+`mise run test-profiles` verifies credential isolation and target selection without
+hardware. The fallback AP has no web configuration interface.
+
+## Discover a remote
+
+In HA, press **RF lernen (60 s)**, then press speed 1, speed 2 and off on one
+intended remote. Read the `olas.learn` logs. **RF Lernen stoppen** closes the
+window early; it also closes automatically and starts inactive after reboot.
+Learning never transmits or saves a pairing automatically.
+
+Logs show a structural candidate ID, function, sequence, check and
+`xor_candidate` (command XOR received check). Compare several commands and
+sequences for a stable ID/check constant; timing recognition is not authentication.
+Store the confirmed values only in that profile's private `secrets.yaml`, set
+`olas_control_enabled: "true"` and `olas_fan_internal: "false"`, then validate,
+compile, upload and perform the [hardware smoke test](docs/verification.md).
+
+With control disabled, normal fan RX-state updates/TX are gated, the fan is
+hidden and RF proxies are excluded. With control enabled, the regular fan and
+RF proxies remain available alongside learning. Other fans need their own
+capture and compatibility test; no universal check constant is assumed.
 
 ## Documentation
 
-- [docs/STATUS.md](docs/STATUS.md): authoritative project state and acceptance criteria
-- [docs/protocol.md](docs/protocol.md): frame, commands, observations and open hypotheses
-- [docs/hardware.md](docs/hardware.md): verified GPIO wiring
-- [docs/architecture.md](docs/architecture.md): code organization and migration path
-- [docs/upstream.md](docs/upstream.md): contribution proposal for upstream
-- [docs/verification.md](docs/verification.md): reproducible hardware test matrix
-  and interactive RF-proxy diagnostic (`mise run rf-diagnose`, receive only by default; #23)
-- [AGENTS.md](AGENTS.md): instructions for coding agents / Codex
+- [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues): work and evidence.
+- [Protocol](docs/protocol.md): frame format, commands and open hypotheses.
+- [Verification](docs/verification.md): development and hardware test procedure.
+- [Architecture](docs/architecture.md): codec, ESPHome glue and boundaries.
+- [Upstream attribution](docs/upstream.md) and [agent instructions](AGENTS.md).
 
-## Licensing
+## License and attribution
 
-Our original code is provided under [MIT](LICENSE). The upstream project is also
-MIT licensed, but remains a separate project; see attribution above and
-[docs/upstream.md](docs/upstream.md).
+Original code is [MIT licensed](LICENSE). The independent
+[kercle/philips-olas-remote](https://github.com/kercle/philips-olas-remote)
+project provides MIT-licensed standalone ESP8266 firmware and protocol research.
+This project uses ESPHome's own CC1101, RX/TX and native entity components;
+it does not depend on that firmware or copy its source files.

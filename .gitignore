@@ -1,5 +1,12 @@
 # ESPHome and credentials
 **/secrets.yaml
+**/secrets-*.yaml
+# Private site/device overlays and their build output.
+/esphome/local/
+# Compatibility: old exports may predate the esphome/local workspace.
+esphome/olas-rf-gateway-legacy.yaml
+# Machine-specific tool cache overrides.
+/mise.local.toml
 **/.esphome/
 **/.pio/
 **/.platformio/

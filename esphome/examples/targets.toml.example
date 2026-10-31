@@ -1,0 +1,7 @@
+# Private destinations for this profile. Select with --target ota or usb.
+# Network uploads use ESPHome OTA and the profile's encryption credentials.
+[targets.ota]
+device = "OTA" # Resolve the profile's node name; or enter a specific IP/host.
+
+[targets.usb]
+device = "CHANGE_ME" # e.g. COM7 or /dev/ttyACM0; inspect before uploading.

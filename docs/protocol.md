@@ -28,29 +28,21 @@ bits 40–17    16–11           10–9        8–1           0
 
 - Sequence cycles downward modulo 4: 2 → 1 → 0 → 3 → 2.
 - All frame copies during one physical press use the same sequence.
-- Observed local device ID: `0xAA8C03`.
-- Observed local integrity check: `check = command XOR 0x25`.
+- An independently observed remote used `check = command XOR 0x25`.
 - Upstream firmware currently implements `command XOR 0x5B` for its device.
-- **Unproven hypothesis:** local `0x25` = `0xAA XOR 0x8C XOR 0x03`, so the
-  check might be derived from all ID bytes. More than one real pairing is
-  required to distinguish this from device-specific fixed constants.
+- **Unproven hypothesis:** XOR of the three ID bytes matched the observed
+  constant for one remote. This does not establish a general derivation rule;
+  keep the check constant configurable and verify each pairing independently.
+- Receive-only discovery can parse complete structural candidates without an
+  expected ID/check. Its `xor_candidate = command XOR received_check` is only
+  an observation from that frame, not an integrity check or pairing result.
+  Verify a consistent candidate across different commands and sequences for
+  each intended remote before configuring control. Compatibility is per target.
+- Discovery execution evidence is recorded in
+  [GitHub issue #15](https://github.com/dirrgang/esphome-philips-olas/issues/15);
+  a consistent capture does not establish a universal derivation rule.
 - This protocol is not authenticated or encrypted. Do not publish captures of
   personal remotes if their IDs matter to your threat model.
-
-The Python diagnostic in `scripts/rf_proxy_diagnose.py` mirrors the portable
-C++ header's frame/check rules and timing windows. It additionally rejects
-functions outside the documented table and scans every complete frame in a
-batch, preserving repeats. Both ID and check XOR are caller-configurable;
-neither implementation treats the ID-byte XOR hypothesis as established.
-
-User-reported proxy API RX on 2026-10-31 decoded speeds 1, 2 and 3 with four
-valid frames per 385 timing values and sequences `1 → 0 → 3` (Issue #23).
-For a clearly visible result, the planned proxy TX experiment now captures
-LIGHT OFF (`0xBC`) from the original remote, then sends LIGHT ON (`0x7C`)
-using the next sequence. A fresh remote LIGHT OFF tests RX return. It uses
-one 84-value signed frame with API
-`repeat_count=4` (four total copies). Its physical acceptance and post-TX RX
-return remain unverified; earlier native TX success does not establish them.
 
 ## Verified local command codes
 
@@ -65,7 +57,7 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 | Fan speed 4 | `0x20` | RX and TX physically tested |
 | Fan speed 5 | `0x80` | RX and TX physically tested |
 | Fan speed 6 | `0x8C` | RX and TX physically tested |
-| Light on | `0x7C` | RX only |
+| Light on | `0x7C` | RX and generic RF-proxy TX physically verified (2026-10-31; #23) |
 | Light off | `0xBC` | RX only |
 | Warm white | `0x6C` | RX only |
 | **Neutral white** | **`0x64`** | **RX only, newly identified** |
@@ -80,11 +72,11 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 
 **Note:** The upstream command table does not yet include neutral white `0x64`.
 
-## Examples from local captures
+## Synthetic example
 
-- `ID=AA8C03`, speed 1, `seq=0`: `command=0x40`, `check=0x65`.
-- `ID=AA8C03`, speed 2, `seq=1`: `command=0xAD`, `check=0x88`.
-- The test transmitter successfully sent speed 1 using the local checksum.
+- Test fixture ID `0x654321`, check XOR `0xA7`, speed 1, sequence 0:
+  `command=0x40`, `check=0xE7`, packed frame `0xCA864281CE`.
+- These values are synthetic; real identifiers and captures remain private.
 
 ## Interpreting an ESPHome RAW log
 
