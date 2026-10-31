@@ -78,19 +78,19 @@ instead of guessing keys or assuming an advertised frequency tunes the CC1101.
 
 Use only with the CC1101 powered at 3.3 V and a suitable 433 MHz antenna.
 Keep other HA/ESPHome transmitters idle throughout; this script cannot arbitrate
-between independent clients. Have the real fan visible for observation.
+between independent clients. Have the real light visible for observation.
 
 **Exact manual command:**
 
 ```bash
-mise run rf-diagnose -- 192.168.20.157 --tx-speed2 --post-rx --receive-seconds 30
+mise run rf-diagnose -- 192.168.20.157 --tx-light-on --post-rx --receive-seconds 30
 ```
 
-1. Enter the encryption key, then press **speed 1 on the original remote** when
-   instructed. Confirm the fan physically runs at speed 1. No baseline means no TX.
+1. Enter the encryption key, then press **LIGHT OFF on the original remote** when
+   instructed. Confirm the light is physically off. No baseline means no TX.
 2. The tool validates the received frame, takes its sequence and computes
-   `(sequence + 3) & 3` (downward modulo 4, including `0 → 3`). It encodes speed 2
-   (`0xAC`), checks 41-bit MSB-first round-trip decoding and alternating
+   `(sequence + 3) & 3` (downward modulo 4, including `0 → 3`). It encodes LIGHT ON
+   (`0x7C`), checks 41-bit MSB-first round-trip decoding and alternating
    positive marks / negative spaces. It prepares 84 timing values per frame.
 3. Review the summary, then type **SEND** within 30 seconds immediately before
    transmission. Any other answer, EOF, missing terminal, connection loss or
@@ -100,19 +100,20 @@ mise run rf-diagnose -- 192.168.20.157 --tx-speed2 --post-rx --receive-seconds 3
    `modulation=OOK`, and `repeat_count=4`: **four total identical frames**, not
    four additional repeats. Timings contain one frame only; no extra gap is
    invented. Approximate total waveform duration is 209 ms.
-5. **Observe the real fan changing to speed 2.** A successful Python API call
+5. **Observe the real light turning on.** A successful Python API call
    only means the request was handed to the client, not that RF was emitted,
    completed, or physically accepted. The connection remains open beyond the
    nominal waveform duration; the tool does not claim a completion ACK.
-6. With `--post-rx`, press Enter when ready and then **speed 3 on the remote**.
-   A fresh speed-3 frame on the same receiver demonstrates post-TX RX delivery;
-   a speed-2 echo alone is not sufficient. Record the physical fan response and
-   existing fan-state updates separately. Without `--post-rx`, this step is skipped.
+6. With `--post-rx`, press Enter when ready and then **LIGHT OFF on the remote**.
+   A fresh light-off frame on the same receiver demonstrates post-TX RX delivery;
+   a light-on echo alone is not sufficient. Record the physical light response
+   separately; existing fan-state updates still require their own regression test.
+   Without `--post-rx`, this step is skipped.
 
 API operations default to 10-second timeouts (`--timeout`); controlled RX windows
 use `--receive-seconds`. Cancellation closes the subscription and connection.
 No automatic reconnect or TX retry occurs: after uncertain delivery, inspect
-physical state and start a new test with a fresh speed-1 baseline.
+physical state and start a new test with a fresh light-off baseline.
 
 ### Evidence ledger (2026-10-31)
 
@@ -123,12 +124,13 @@ physical state and start a new test with a fresh speed-1 baseline.
 | Proxy receiver → independent `aioesphomeapi` RX | User-confirmed before this CLI |
 | Speed 1 / 2 / 3 decoding | User-confirmed: four valid frames per 385 timings, sequences `1 → 0 → 3` |
 | Earlier inline TX failure | `EOFError` from heredoc-occupied stdin before transmission; not RF failure |
+| Light diagnostic hardware acceptance | Light off via remote → on via proxy → off via remote; pending, no light TX claimed verified |
 | Diagnostic host tests | Synthetic codec fixtures and fake API only; see host test command above |
 | Host validation during implementation | `mise install`, `mise run test` (C++ + 16 Python tests), direct uv and mise `--help`, and `git diff --check` passed |
 | Local ESPHome config / compile | Both tasks passed with ESPHome 2026.10.1 against the already locally modified YAML and local secrets; that YAML is excluded from this diagnostic change. Does not validate the committed reconstruction or flashed revision |
 | This CLI against the real gateway | Pending manual RX test |
-| Generic proxy TX / physical speed-2 reaction | Pending manual test above |
-| CC1101 return to RX after proxy TX | Pending fresh remote speed-3 test |
+| Generic proxy TX / physical light-on reaction | Pending manual test above |
+| CC1101 return to RX after proxy TX | Pending fresh remote light-off test |
 | Cross-client serialization / native Olas regression | Still pending (#23/#24) |
 
 Record date, actual firmware revision, discovered receiver/transmitter identity,

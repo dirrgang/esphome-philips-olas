@@ -128,9 +128,9 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.output.stop)
         self.args = SimpleNamespace(host="test.invalid", port=6053, timeout=0.05,
                                     receive_seconds=0.02, fan_id=ID, check_xor=XOR,
-                                    receiver=None, transmitter=None, tx_speed2=False, post_rx=False)
+                                    receiver=None, transmitter=None, tx_light_on=False, post_rx=False)
 
-    def emit(self, function=0x40, sequence=0, device_id=7, key=123):
+    def emit(self, function=0xBC, sequence=0, device_id=7, key=123):
         self.callback(SimpleNamespace(device_id=device_id, key=key,
                                       timings=rf.encode_timings(rf.encode_frame(ID, function, sequence, XOR)) * 4))
 
@@ -161,7 +161,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         self.client.disconnect.assert_awaited_once()
 
     async def test_confirmation_cancel_and_changed_baseline_prevent_tx(self):
-        self.args.tx_speed2 = True
+        self.args.tx_light_on = True
         for changed in (False, True):
             async def confirm(*args):
                 if changed:
@@ -173,7 +173,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
             self.client.radio_frequency_transmit_raw_timings.assert_not_called()
 
     async def test_mock_tx_has_discovered_identity_and_four_total_frames(self):
-        self.args.tx_speed2 = True
+        self.args.tx_light_on = True
         self.args.timeout = 2
         with patch.object(rf, "terminal_line", new=AsyncMock(return_value="SEND")), \
                 patch.object(rf, "require_terminal"):
@@ -183,7 +183,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
                          dict(key=123, device_id=7, frequency=434_000_000, modulation=0, repeat_count=4))
         self.assertEqual(len(kwargs["timings"]), 84)
         decoded = rf.decode_timings(kwargs["timings"], ID, XOR)
-        self.assertEqual((decoded[0].function, decoded[0].sequence), (0xAC, 3))
+        self.assertEqual((decoded[0].function, decoded[0].sequence), (0x7C, 3))
         self.client.radio_frequency_transmit_raw_timings.assert_called_once()
 
     async def test_connection_failure_closes(self):
@@ -193,9 +193,16 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         self.client.disconnect.assert_awaited_once()
         self.client.radio_frequency_transmit_raw_timings.assert_not_called()
 
-    async def test_no_speed1_baseline_or_lost_connection_never_transmits(self):
-        self.args.tx_speed2 = True
-        self.client.subscribe_infrared_rf_receive.side_effect = lambda cb: Mock()
+    async def test_no_light_off_baseline_or_lost_connection_never_transmits(self):
+        self.args.tx_light_on = True
+
+        def wrong_baseline(callback):
+            self.callback = callback
+            # The former speed-1 baseline must not enable light TX.
+            asyncio.get_running_loop().call_soon(self.emit, 0x40)
+            return Mock()
+
+        self.client.subscribe_infrared_rf_receive.side_effect = wrong_baseline
         with self.assertRaises(rf.DiagnosticError):
             await rf.run(self.args, "fake-key")
         self.client.radio_frequency_transmit_raw_timings.assert_not_called()
@@ -210,7 +217,7 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
         self.client.radio_frequency_transmit_raw_timings.assert_not_called()
 
     async def test_terminal_guard_remains_immediately_before_tx(self):
-        self.args.tx_speed2 = True
+        self.args.tx_light_on = True
         with patch.object(rf, "terminal_line", new=AsyncMock(return_value="SEND")), \
                 patch.object(sys, "stdin") as stdin:
             stdin.isatty.return_value = False
@@ -218,14 +225,14 @@ class ProxyTests(unittest.IsolatedAsyncioTestCase):
                 await rf.run(self.args, "fake-key")
         self.client.radio_frequency_transmit_raw_timings.assert_not_called()
 
-    async def test_post_rx_requires_fresh_remote_speed3(self):
-        self.args.tx_speed2 = True
+    async def test_post_rx_requires_fresh_remote_light_off(self):
+        self.args.tx_light_on = True
         self.args.post_rx = True
         self.args.timeout = 2
 
         async def prompt(text):
             if "Optional RX" in text:
-                asyncio.get_running_loop().call_later(0.001, self.emit, 0x9C, 2)
+                asyncio.get_running_loop().call_later(0.001, self.emit, 0xBC, 2)
                 return ""
             return "SEND"
 

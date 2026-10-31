@@ -34,7 +34,9 @@ currently flashed YAML before attempting OTA changes.
 ### Reproducible diagnostic (host-tested, not hardware-tested)
 
 `scripts/rf_proxy_diagnose.py` provides bounded receive-only diagnosis and an
-explicitly enabled, terminal-confirmed speed-1 → speed-2 proxy TX experiment.
+explicitly enabled, terminal-confirmed light-off (remote) → light-on (proxy) TX experiment.
+The optional post-TX RX check uses a fresh remote light-off press. Light command
+codes were previously RX-only; physical light TX remains unverified.
 Host tests use synthetic frames and fake clients only. See
 [verification.md](verification.md#independent-rf-proxy-diagnostic--issue-23).
 This supports [#23](https://github.com/dirrgang/esphome-philips-olas/issues/23)

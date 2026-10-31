@@ -108,7 +108,7 @@ def decode_timings(timings, expected_id, check_xor):
 
 
 def validated_tx_timings(fan_id, sequence, check_xor):
-    raw = encode_frame(fan_id, 0xAC, sequence, check_xor)
+    raw = encode_frame(fan_id, 0x7C, sequence, check_xor)
     timings = encode_timings(raw)
     expected = decode_frame(raw, fan_id, check_xor)
     if (len(timings) != 84
@@ -227,11 +227,11 @@ async def run(args, key):
         entities, _ = await bounded(client.list_entities_services(), args.timeout)
         receiver = select_entity(entities, RadioFrequencyCapability.RECEIVER, args.receiver, "receiver")
         transmitter = None
-        if args.tx_speed2:
+        if args.tx_light_on:
             transmitter = select_entity(entities, RadioFrequencyCapability.TRANSMITTER,
                                         args.transmitter, "transmitter")
         unsubscribe = client.subscribe_infrared_rf_receive(on_receive)
-        if not args.tx_speed2:
+        if not args.tx_light_on:
             print(f"Receive only for {args.receive_seconds:g}s; press the original remote.")
             await bounded(asyncio.sleep(args.receive_seconds), args.receive_seconds + 1)
             print(f"RX summary: {batches} batches, {valid_count} valid frames; raw data not logged")
@@ -239,21 +239,22 @@ async def run(args, key):
                 raise DiagnosticError("No matching Olas frame; check remote, ID/XOR, receiver and RX mode")
             return
 
-        print("Controlled TX: press original remote SPEED 1 now. No other RF/HA sender during this test.")
+        print("Controlled TX: press original remote LIGHT OFF now; verify the light is off. "
+              "No other RF/HA sender during this test.")
         deadline = time.monotonic() + args.receive_seconds
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise DiagnosticError("No unambiguous speed-1 baseline received before timeout")
+                raise DiagnosticError("No unambiguous light-off baseline received before timeout")
             frames = await bounded(received.get(), remaining)
             # Reject mixed batches and stale queued frames.
-            if len(set(frames)) == 1 and frames[-1].function == 0x40 and latest == frames[-1]:
+            if len(set(frames)) == 1 and frames[-1].function == 0xBC and latest == frames[-1]:
                 baseline = frames[-1]
                 baseline_revision = revision
                 break
         sequence = next_sequence(baseline.sequence)
         timings = validated_tx_timings(args.fan_id, sequence, args.check_xor)
-        print(f"Prepared speed 2: seq {baseline.sequence} -> {sequence}, 434 MHz ASK/OOK, "
+        print(f"Prepared LIGHT ON: seq {baseline.sequence} -> {sequence}, 434 MHz ASK/OOK, "
               "84 signed timings/frame, 4 identical frames total (~209 ms).")
         answer = await bounded(terminal_line(
             "Verify suitable 433 MHz antenna and 3.3 V CC1101. "
@@ -267,24 +268,24 @@ async def run(args, key):
         client.radio_frequency_transmit_raw_timings(
             key=transmitter.key, device_id=transmitter.device_id, frequency=FREQUENCY,
             modulation=RadioFrequencyModulation.OOK, timings=timings, repeat_count=4)
-        print("TX request handed to client API. This proves neither RF emission nor fan response. "
-              "Physically verify SPEED 2 now; record the observed response separately.")
+        print("TX request handed to client API. This proves neither RF emission nor light response. "
+              "Physically verify that the LIGHT TURNS ON now; record the observed response separately.")
         # Keep connection open beyond the ~209 ms waveform; not a completion acknowledgement.
         await bounded(asyncio.sleep(1), args.timeout)
         if args.post_rx:
             await bounded(terminal_line(
-                "Optional RX return check: press Enter when ready (30s), then press remote SPEED 3: "), 31)
+                "Optional RX return check: press Enter when ready (30s), then press remote LIGHT OFF: "), 31)
             while not received.empty():
                 received.get_nowait()
             deadline = time.monotonic() + args.receive_seconds
             while True:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
-                    raise DiagnosticError("No fresh speed-3 frame after TX; RX return remains unverified")
+                    raise DiagnosticError("No fresh light-off frame after TX; RX return remains unverified")
                 frames = await bounded(received.get(), remaining)
-                if any(frame.function == 0x9C for frame in frames):
-                    print("Fresh remote speed-3 frame received after TX: RX return observed. "
-                          "Fan response still requires physical verification.")
+                if any(frame.function == 0xBC for frame in frames):
+                    print("Fresh remote light-off frame received after TX: RX return observed. "
+                          "Light response still requires physical verification.")
                     break
     finally:
         if unsubscribe is not None:
@@ -318,15 +319,15 @@ def main():
     parser.add_argument("--transmitter", help="advertised DEVICE_ID:OBJECT_ID if ambiguous")
     parser.add_argument("--timeout", type=positive_seconds, default=10, help="API timeout seconds")
     parser.add_argument("--receive-seconds", type=positive_seconds, default=30)
-    parser.add_argument("--tx-speed2", action="store_true", help="enable controlled manual speed-2 TX test")
-    parser.add_argument("--post-rx", action="store_true", help="after TX, check fresh remote speed-3 RX")
+    parser.add_argument("--tx-light-on", action="store_true", help="enable controlled manual LIGHT ON TX test")
+    parser.add_argument("--post-rx", action="store_true", help="after TX, check fresh remote LIGHT OFF RX")
     args = parser.parse_args()
     if not 0 <= args.fan_id <= 0xFFFFFF or not 0 <= args.check_xor <= 0xFF:
         parser.error("fan ID must be 24-bit; check XOR must be 8-bit")
     if not 1 <= args.port <= 65535:
         parser.error("port must be 1..65535")
-    if args.post_rx and not args.tx_speed2:
-        parser.error("--post-rx requires --tx-speed2")
+    if args.post_rx and not args.tx_light_on:
+        parser.error("--post-rx requires --tx-light-on")
     # Do not forward third-party debug logs or exception payloads (may contain private data).
     logging.getLogger("aioesphomeapi").setLevel(logging.CRITICAL)
     try:

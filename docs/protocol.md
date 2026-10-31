@@ -45,7 +45,10 @@ neither implementation treats the ID-byte XOR hypothesis as established.
 
 User-reported proxy API RX on 2026-10-31 decoded speeds 1, 2 and 3 with four
 valid frames per 385 timing values and sequences `1 → 0 → 3` (Issue #23).
-The planned proxy TX experiment uses one 84-value signed frame with API
+For a clearly visible result, the planned proxy TX experiment now captures
+LIGHT OFF (`0xBC`) from the original remote, then sends LIGHT ON (`0x7C`)
+using the next sequence. A fresh remote LIGHT OFF tests RX return. It uses
+one 84-value signed frame with API
 `repeat_count=4` (four total copies). Its physical acceptance and post-TX RX
 return remain unverified; earlier native TX success does not establish them.
 
