@@ -1,0 +1,19 @@
+# Copy to esphome/local/gateway.yaml, or run mise run init-local.
+# This profile includes the regular gateway, including passive learning.
+packages:
+  gateway: !include ../olas-rf-gateway.yaml
+
+substitutions:
+  olas_protocol_header: ../include/olas_protocol.h
+  # Keep control disabled until your remote's ID/check have been captured.
+  olas_control_enabled: "false"
+  olas_fan_internal: "true"
+  olas_fan_id: "0x000000"
+  olas_check_xor: "0x00"
+  # After verifying several commands, replace the two sentinels with:
+  # olas_fan_id: !secret olas_fan_id
+  # olas_check_xor: !secret olas_check_xor
+  # Then enable control and expose the fan (internal: false).
+
+esphome:
+  build_path: build/olas-rf-gateway-local

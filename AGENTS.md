@@ -1,48 +1,40 @@
-# Instructions for Codex and coding agents
+# Project instructions
 
-**Source of truth and current state:** read `README.md`, `docs/STATUS.md`,
-`docs/protocol.md`, and `docs/verification.md` before implementing anything.
+## Context and tracking
 
-## Authority and evidence
+- This is an independent ESPHome gateway using official CC1101, remote RX/TX
+  and native entity components. Keep the protocol codec portable and host-testable.
+- Use [GitHub Issues and PRs](https://github.com/dirrgang/esphome-philips-olas/issues)
+  for work items, priorities, dependencies, acceptance progress and test results.
+  Read the relevant issue/PR before related work; reuse existing issues.
+  Do not maintain local backlogs, status/handoff files or current-task lists.
+- Consult `README.md` for setup, `docs/protocol.md` for codec changes,
+  `docs/architecture.md` for component boundaries and `docs/verification.md`
+  for firmware/hardware verification. Update technical docs when behaviour changes.
 
-- Verified user hardware behaviour in `docs/STATUS.md` is authoritative.
-- `esphome/olas-rf-gateway.yaml` is a reconstructed reference, **not** the
-  proven currently flashed file. Ask for / compare the live config before OTA.
-- Never claim physical testing or ESPHome compilation unless actually run.
-- Keep facts, hypotheses and intended behaviour explicitly separate.
-- Review the upstream MIT license and attribution if reusing any upstream code.
+## Checks
 
-## Scope
+Use the pinned mise toolchain (`mise install` to provision it):
 
-- Target ESPHome 2026.10.1, ESP32-S2 Mini, CC1101 ASK/OOK at 434 MHz.
-- Prefer official ESPHome CC1101 + remote RX/TX + native entities.
-- Keep protocol codec portable and host-testable; avoid hardcoding one check
-  constant as the universal Philips Olas rule.
-- Do not implement a giant rewrite, web server, standalone firmware or
-  unnecessary dependencies without a specific reason.
+- Codec changes: `mise run test` (Bash and C++17; Zig on Windows).
+- Reference YAML changes: `mise run config`, then `mise run compile` with
+  ignored `esphome/secrets.yaml` present.
+- Private hardware profiles: `mise run config-local`, then `mise run compile-local`.
+  `mise run init-local` creates the ignored workspace without replacing files.
+- Docs-only changes need link/consistency checks, not a firmware build.
 
-## Workflow
+## Hardware and evidence
 
-1. Understand existing behaviour and document testable acceptance criteria.
-2. Make **one coherent small change**.
-3. Use the project's mise toolchain: `mise install`, `mise run test`, and,
-   once `esphome/secrets.yaml` exists, `mise run config` then `mise run compile`.
-   The underlying commands are `scripts/test.sh` and `esphome config/compile`.
-4. Ask for real-hardware smoke tests and record results as observed/unverified.
-5. Update `docs/STATUS.md` and `docs/protocol.md` on relevant discoveries.
-6. Prefer small PRs. Never push or open an upstream PR without user's approval.
-
-## Safety and robustness
-
-- CC1101 must be 3.3 V; no transmitting without a suitable 433 MHz antenna.
-- Avoid exposing Wi-Fi credentials, HA API/OTA credentials, or unnecessary
-  device-specific RF captures. `secrets.yaml` is gitignored.
-- No HA state may pretend to be independently confirmed physical telemetry.
-- Prevent RX-to-TX loops; do not lose legitimate repeated presses.
-- Do not mark dimming or absolute direction as working yet.
-
-## Next task to pick up
-
-Validate the refactored YAML (configuration, compilation and device smoke test)
-**before** adding lighting. Then investigate held brightness buttons as a
-separate diagnostic task, followed by small features with corresponding tests.
+- Keep real profiles, credentials, exports and captures in ignored `esphome/local/`;
+  public templates and tests must work without any real installation.
+- Compilation is separate from deployment. Before an authorized flash, compare
+  with the actual installed configuration and preserve Wi-Fi/API/OTA access.
+- CC1101 requires 3.3 V and a suitable 433 MHz antenna before transmitting.
+- Separate host/build checks, device logs and user-observed physical results
+  in the relevant GitHub issue/PR. Never claim testing that was not performed.
+- Check XOR remains configurable; do not promote an unproven universal rule.
+- Preserve RX-to-TX guarding and legitimate repeated presses. HA state describes
+  commanded/overheard state, not confirmed telemetry; do not invent absolute
+  brightness or direction feedback.
+- Review attribution/license requirements before reusing upstream source.
+  Do not push or open upstream PRs without the user's approval.

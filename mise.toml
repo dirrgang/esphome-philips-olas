@@ -23,3 +23,23 @@ run = "esphome compile esphome/olas-rf-gateway.yaml"
 [tasks.version]
 description = "Display the pinned ESPHome version"
 run = "esphome version"
+
+[tasks.config-local]
+description = "Validate a private local gateway profile"
+run = 'esphome config "{{ env.OLAS_LOCAL_CONFIG | default(value="esphome/local/gateway.yaml") }}"'
+
+[tasks.compile-local]
+description = "Compile a private local gateway profile; does not upload"
+run = 'esphome compile "{{ env.OLAS_LOCAL_CONFIG | default(value="esphome/local/gateway.yaml") }}"'
+
+[tasks.init-local]
+description = "Create an ignored hardware-test profile; preserve existing files"
+run = "python scripts/init-local.py"
+
+[tasks.logs-local]
+description = "Read logs from a private hardware-test profile"
+run = 'esphome logs "{{ env.OLAS_LOCAL_CONFIG | default(value="esphome/local/gateway.yaml") }}" --device "{{ env.OLAS_DEVICE | default(value="OTA") }}"'
+
+[tasks.upload-local]
+description = "Upload the compiled private profile to real hardware"
+run = 'esphome upload "{{ env.OLAS_LOCAL_CONFIG | default(value="esphome/local/gateway.yaml") }}" --device "{{ env.OLAS_DEVICE | default(value="OTA") }}"'
