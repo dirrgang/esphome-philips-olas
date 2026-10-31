@@ -6,3 +6,4 @@ trap 'rm -rf "$TMP"' EXIT
 c++ -std=c++17 -Wall -Wextra -Werror -pedantic -I"$ROOT/esphome/include" \
   "$ROOT/tests/test_protocol.cpp" -o "$TMP/olas-tests"
 "$TMP/olas-tests"
+python3 -m unittest discover -s "$ROOT/tests" -p 'test_*.py' -v

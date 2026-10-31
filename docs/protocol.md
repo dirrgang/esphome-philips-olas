@@ -37,6 +37,18 @@ bits 40–17    16–11           10–9        8–1           0
 - This protocol is not authenticated or encrypted. Do not publish captures of
   personal remotes if their IDs matter to your threat model.
 
+The Python diagnostic in `scripts/rf_proxy_diagnose.py` mirrors the portable
+C++ header's frame/check rules and timing windows. It additionally rejects
+functions outside the documented table and scans every complete frame in a
+batch, preserving repeats. Both ID and check XOR are caller-configurable;
+neither implementation treats the ID-byte XOR hypothesis as established.
+
+User-reported proxy API RX on 2026-10-31 decoded speeds 1, 2 and 3 with four
+valid frames per 385 timing values and sequences `1 → 0 → 3` (Issue #23).
+The planned proxy TX experiment uses one 84-value signed frame with API
+`repeat_count=4` (four total copies). Its physical acceptance and post-TX RX
+return remain unverified; earlier native TX success does not establish them.
+
 ## Verified local command codes
 
 Function codes are masked with `command & 0xFC` (sequence bits zeroed).

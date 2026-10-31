@@ -6,8 +6,12 @@ uv = "0.12.10"
 "pypi:esphome" = "2026.10.1"
 
 [tasks.test]
-description = "Run the C++17 protocol tests (requires Bash and a C++ compiler)"
+description = "Run C++17 and Python host tests (no hardware access)"
 run = "bash scripts/test.sh"
+
+[tasks.rf-diagnose]
+description = "Interactive RF-proxy diagnosis (receive only unless explicitly enabled)"
+run = "uv run --script scripts/rf_proxy_diagnose.py"
 
 [tasks.config]
 description = "Validate the ESPHome reference YAML (requires local secrets.yaml)"

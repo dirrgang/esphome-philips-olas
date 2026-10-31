@@ -87,6 +87,7 @@ capture and may use a different check value. No generic pairing is implemented.
 - [docs/architecture.md](docs/architecture.md): code organization and migration path
 - [docs/upstream.md](docs/upstream.md): contribution proposal for upstream
 - [docs/verification.md](docs/verification.md): reproducible hardware test matrix
+  and interactive RF-proxy diagnostic (`mise run rf-diagnose`, receive only by default; #23)
 - [AGENTS.md](AGENTS.md): instructions for coding agents / Codex
 
 ## Licensing

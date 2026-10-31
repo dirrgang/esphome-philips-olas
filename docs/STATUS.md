@@ -1,4 +1,4 @@
-# Project state (2026-10-30)
+# Project state (2026-10-31)
 
 This is the **authoritative handoff** for subsequent Codex work. Read this
 before modifying any firmware. Actual ESPHome device configuration may have
@@ -16,6 +16,38 @@ currently flashed YAML before attempting OTA changes.
 - RX guard prevents an inbound remote command triggering another RF send.
 - State while off retains last nonzero speed (expected HA fan behaviour).
 - Independent captures identified additional light and timer command codes.
+
+### Generic RF proxy: user-confirmed on flashed firmware (2026-10-31)
+
+- Encrypted ESPHome API handshake succeeded.
+- Existing Olas `on_raw` lambda decodes the original remote and updates the
+  ESPHome fan state; this is distinct from generic proxy reception.
+- Native API advertises the generic RF receiver; an independent Python client
+  receives raw RF through `aioesphomeapi.subscribe_infrared_rf_receive()`.
+- Speeds 1, 2 and 3 each yielded four valid Olas frames from 385 timing values;
+  observed sequence progression was `1 → 0 → 3`.
+- These are user-reported results from before the repository diagnostic CLI.
+  Generic proxy TX, physical fan actuation via that path, and subsequent RX
+  return remain **unverified**. The previous inline TX attempt failed with
+  stdin `EOFError` before transmission, not an RF failure.
+
+### Reproducible diagnostic (host-tested, not hardware-tested)
+
+`scripts/rf_proxy_diagnose.py` provides bounded receive-only diagnosis and an
+explicitly enabled, terminal-confirmed speed-1 → speed-2 proxy TX experiment.
+Host tests use synthetic frames and fake clients only. See
+[verification.md](verification.md#independent-rf-proxy-diagnostic--issue-23).
+This supports [#23](https://github.com/dirrgang/esphome-philips-olas/issues/23)
+and the still-open architecture gate
+[#27](https://github.com/dirrgang/esphome-philips-olas/issues/27); it creates no
+permanent competing protocol/entity implementation or HA integration.
+Firmware compilation, CLI device smoke tests and cross-client arbitration
+remain separate checks; no OTA or RF transmission was performed for this work.
+On 2026-10-31, `mise install`, C++ tests and 16 Python host tests passed, as did
+the uv/mise CLI help checks. `mise run config` and `mise run compile` also
+succeeded with ESPHome 2026.10.1 against the **pre-existing locally modified
+YAML**, using local secrets. That YAML is excluded from the diagnostic change;
+this build does not validate the committed reconstruction or flashed revision.
 
 ## Reconstructed code needing validation
 
