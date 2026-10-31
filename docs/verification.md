@@ -118,6 +118,38 @@ package, then validate two isolated profiles with different synthetic data.
 They also verify target selection and that a failed build prevents installation.
 They never contact hardware. Never flash the synthetic build fixture.
 
+## Automated firmware CI and offline smoke tests — #4
+
+[GitHub Actions ESPHome firmware validation](../.github/workflows/esphome.yml)
+runs for PRs/pushes changing firmware, the workflow, the fixture or its tooling,
+and can be started manually. On Ubuntu 24.04 it installs the pinned
+`mise.toml` tool versions, then runs:
+
+```bash
+mise run version
+mise run config
+mise run smoke-config
+mise run compile
+```
+
+`config` and `compile` use only the committed synthetic
+`esphome/validation.yaml` with dummy credentials and one synthetic RF ID.
+The **negative smoke test** creates a temporary sibling of that fixture
+with a deliberately missing gateway `!include`, verifies that ESPHome fails
+*specifically* for that missing path, and deletes the temporary file.
+It fails CI if validation accepts the broken include or fails for an unrelated
+reason. It never opens the API, sends RF, flashes hardware, or touches private
+`esphome/local/` profiles. A successful build proves configuration and
+compilation, **not** ESP32/CC1101/HA runtime behavior.
+
+Only the mise tool cache is provided by the action initially; full
+PlatformIO/build caching is deferred until CI runtime is measured. The
+mise/ESPHome versions are pinned in `mise.toml`, but the Python transitive
+dependencies and PlatformIO toolchain are **not yet fully lockfile-pinned**.
+Full physical fan/light/remote smoke testing remains a separate, manual
+[#3](https://github.com/dirrgang/esphome-philips-olas/issues/3) procedure;
+RF-proxy transmit arbitration remains [#24](https://github.com/dirrgang/esphome-philips-olas/issues/24).
+
 ## Physical regression matrix
 
 This is a reusable test procedure, not an execution tracker. Record firmware
