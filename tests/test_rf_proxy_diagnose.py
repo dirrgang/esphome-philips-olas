@@ -2,6 +2,7 @@
 
 import asyncio
 import importlib.util
+import io
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -93,6 +94,36 @@ class CodecTests(unittest.TestCase):
             stdin.isatty.return_value = False
             with self.assertRaises(rf.DiagnosticError):
                 rf.require_terminal()
+
+
+class ConsoleInputTests(unittest.IsolatedAsyncioTestCase):
+    """Exercise native Windows confirmation even on non-Windows CI runners."""
+
+    async def test_windows_send_confirmation_and_backspace(self):
+        for keys, expected in ((list("SEND\r"), "SEND"), (list("SENX\bD\r"), "SEND"),
+                               (list("NO\r"), "NO")):
+            console = SimpleNamespace(
+                kbhit=lambda: bool(keys),
+                getwch=lambda: keys.pop(0),
+            )
+            with self.subTest(expected=expected), \
+                    patch.object(rf.sys, "platform", "win32"), \
+                    patch.object(rf, "require_terminal"), \
+                    patch.dict(sys.modules, {"msvcrt": console}), \
+                    patch.object(sys, "stdout", io.StringIO()):
+                self.assertEqual(await rf.terminal_line("Confirm: ", timeout=1), expected)
+
+    async def test_windows_timeout_never_calls_add_reader_or_background_thread(self):
+        console = SimpleNamespace(kbhit=lambda: False, getwch=Mock())
+        with patch.object(rf.sys, "platform", "win32"), \
+                patch.object(rf, "require_terminal"), \
+                patch.dict(sys.modules, {"msvcrt": console}), \
+                patch.object(sys, "stdout", io.StringIO()), \
+                patch.object(asyncio.get_running_loop(), "add_reader",
+                             side_effect=AssertionError("Windows console cannot use add_reader")):
+            with self.assertRaises(asyncio.TimeoutError):
+                await rf.terminal_line("Confirm: ", timeout=0.01)
+        console.getwch.assert_not_called()
 
 
 class FakeRFInfo(SimpleNamespace):

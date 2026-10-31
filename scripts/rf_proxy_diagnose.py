@@ -124,10 +124,50 @@ def require_terminal():
         raise DiagnosticError("Interactive terminal required; no key input or RF TX through pipes/CI")
 
 
+async def _windows_console_line(timeout):
+    """Read native Windows console keys without blocking RX or leaking workers.
+
+    ProactorEventLoop does not offer add_reader, and the Windows selector loop
+    cannot monitor a console handle. Polling msvcrt provides a bounded prompt
+    without blocking the event loop or leaving a background input thread.
+    """
+    import msvcrt
+
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    entered = []
+    while True:
+        if msvcrt.kbhit():
+            char = msvcrt.getwch()
+            if char in ("\x00", "\xe0"):
+                msvcrt.getwch()  # Discard the scan code of a special key.
+            elif char in ("\r", "\n"):
+                print()
+                return "".join(entered).strip()
+            elif char == "\b":
+                if entered:
+                    entered.pop()
+                    sys.stdout.write("\b \b")
+                    sys.stdout.flush()
+            elif char == "\x03":
+                raise KeyboardInterrupt
+            elif char.isprintable() and len(entered) < 64:
+                entered.append(char)
+                sys.stdout.write(char)
+                sys.stdout.flush()
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise asyncio.TimeoutError("Terminal confirmation timed out")
+        await asyncio.sleep(min(0.05, remaining))
+
+
 async def terminal_line(prompt, timeout=30):
-    """Read without blocking RX callbacks; no worker thread left waiting on timeout."""
+    """Bounded TTY prompt on POSIX and native Windows, never a blocking thread."""
     require_terminal()
     print(prompt, end="", flush=True)
+    if sys.platform == "win32":
+        return await _windows_console_line(timeout)
+
     loop = asyncio.get_running_loop()
     result = loop.create_future()
 

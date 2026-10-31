@@ -86,6 +86,16 @@ basic proxy RX/TX feasibility, **not** reliable concurrent client arbitration,
 native HA receiver support, multiple real device addresses, or physical testing
 of the repository's refactored YAML. See #24 and #27.
 
+### Native Windows console compatibility
+
+For the mandatory interactive `SEND` prompt, native Windows uses an
+asynchronous `msvcrt` key poller instead of `asyncio.add_reader()` (unsupported
+by Windows ProactorEventLoop, and the Windows selector loop cannot watch console
+handles). The prompt remains bounded and rejects a noninteractive stdin;
+there is no background input thread left running after timeout. The same
+script uses `add_reader()` in POSIX terminals. Host tests run on Linux and
+native Windows; physical RF TX was verified by the user on Linux only.
+
 ## ESPHome validation/compile
 
 Run with the ESPHome 2026.10.1 CLI installed by mise; these commands do not
