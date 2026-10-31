@@ -106,3 +106,22 @@ limited controlled window to avoid collecting unrelated RF identifiers.
 2. Recheck actual RX/TX pins, SPI, CC1101 Chip ID, and mode transitions.
 3. Collect only the minimal relevant logs and observed physical behaviour.
 4. Revert instead of stacking unverified changes.
+
+## Receive-only multi-device core — host/compile checks (#21)
+
+The optional external component is independent of the existing profile/learning
+firmware. Its fixture uses synthetic Olas ID/check combinations only:
+
+```bash
+mise run test-core
+mise run test-schema
+mise run config-core
+mise run compile-core
+```
+
+The host C++ core tests cover independently addressed devices, address and XOR
+isolation, sequence wrap, deduplication, mixed batches, bad frames and rollover.
+Schema tests check typed receiver/transmitter references, invalid addresses,
+duplicated IDs and checks. **Config/compile or host checks do not prove any
+physical multi-fan behaviour.** Do not flash the synthetic fixture.
+The refactored component's role remains conditional on #22/#27.

@@ -51,3 +51,19 @@ run = "python scripts/local.py upload"
 [tasks.install-local]
 description = "Compile a selected private profile, then install via its OTA/serial target"
 run = "python scripts/local.py install"
+
+[tasks.test-core]
+description = "Run optional receive-only multi-device C++ core tests; no hardware"
+run = "bash scripts/test-core.sh"
+
+[tasks.test-schema]
+description = "Validate optional Olas component schema with ESPHome 2026.10.1"
+run = "python tests/test_config.py"
+
+[tasks.config-core]
+description = "Validate synthetic receive-only Olas component fixture"
+run = "esphome config tests/fixtures/olas-core.yaml"
+
+[tasks.compile-core]
+description = "Compile synthetic receive-only Olas component fixture; never install"
+run = "esphome compile tests/fixtures/olas-core.yaml"

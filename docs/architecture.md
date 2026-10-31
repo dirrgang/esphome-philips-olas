@@ -45,3 +45,24 @@ This document describes the implementation in this checkout.
   genuinely new press of the same button.
 - **Simultaneous remotes and ESP32:** each received matching frame advances
   the local next-sequence value; sequence wrap is not authentication.
+
+## Experimental receive-only multi-device core (PR #21)
+
+An optional external ESPHome component lives in `components/olas/`; it is
+not part of the currently deployed shared YAML/package. It uses a byte-identical copy of the single-device gateway's pure 41-bit
+codec, checked by `scripts/test-core.sh`. ESPHome copies `esphome.includes`
+headers into generated build directories, so a relative forwarding include to
+the optional component fails compilation; both standalone headers deliberately
+remain self-contained until architecture ownership is decided. The lightweight `GatewayCore` scans one
+receiver batch and dispatches structurally valid candidate frames to configured
+24-bit addresses. Each logical device owns its check XOR, independently
+estimated fan state, descending 2-bit sequence and bounded dedup history.
+It does **not** perform RF TX, retune CC1101, or register native HA entities.
+
+The synthetic fixture `tests/fixtures/olas-core.yaml` validates the schema,
+typed receiver/transmitter references and two distinct logical addresses;
+it must not be installed. The choice between keeping this component and
+moving protocol/entity ownership to Home Assistant is explicitly deferred
+to the [architecture ADR #27](https://github.com/dirrgang/esphome-philips-olas/issues/27).
+The current private-profile gateway and its learning flow remain authoritative
+until an explicitly approved and physically verified migration.

@@ -125,6 +125,26 @@ hidden and RF proxies are excluded. With control enabled, the regular fan and
 RF proxies remain available alongside learning. Other fans need their own
 capture and compatibility test; no universal check constant is assumed.
 
+## Experimental receive-only multi-device core
+
+The optional `components/olas` external component contains an isolated
+host-testable RX router for multiple Olas addresses with per-device check XOR,
+sequence/deduplication and estimated fan state. **It is not enabled** in the
+normal single-fan gateway, does not transmit RF and exposes no HA fan/light
+entities. It is an architecture candidate pending [#27](https://github.com/dirrgang/esphome-philips-olas/issues/27),
+not a migration or a replacement for the working private profiles.
+
+```sh
+mise run test-core
+mise run test-schema
+mise run config-core
+mise run compile-core
+```
+
+These commands use synthetic test data and **must never flash the fixture**.
+See [#21](https://github.com/dirrgang/esphome-philips-olas/pull/21)
+and the [verification procedure](docs/verification.md).
+
 ## Documentation
 
 - [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues): work and evidence.
