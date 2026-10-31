@@ -31,3 +31,7 @@ jobs:
         run: mise run test-core
       - name: ESPHome schema and typed references
         run: mise run test-schema
+      - name: Validate and compile main synthetic gateway fixture
+        run: mise run config && mise run compile
+      - name: Validate and compile multi-device synthetic fixture
+        run: mise run config-core && mise run compile-core
