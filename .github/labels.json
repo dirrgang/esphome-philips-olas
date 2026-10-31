@@ -1,0 +1,67 @@
+[
+  {
+    "name": "priority:p0",
+    "color": "b60205",
+    "description": "Critical blocker or decision gate; do before dependent work."
+  },
+  {
+    "name": "priority:p1",
+    "color": "d93f0b",
+    "description": "High priority; next planned implementation work."
+  },
+  {
+    "name": "priority:p2",
+    "color": "fbca04",
+    "description": "Normal priority; scheduled after the essential path."
+  },
+  {
+    "name": "priority:p3",
+    "color": "0e8a16",
+    "description": "Low priority or optional improvement; defer when needed."
+  },
+  {
+    "name": "area:gateway",
+    "color": "1d76db",
+    "description": "Shared RF transport, CC1101, remote receiver/transmitter and proxy."
+  },
+  {
+    "name": "area:protocol",
+    "color": "006b75",
+    "description": "Philips Olas RF frames, codec, sequences and device semantics."
+  },
+  {
+    "name": "area:hardware",
+    "color": "5319e7",
+    "description": "Requires or concerns physical devices, wiring, RF range or testing."
+  },
+  {
+    "name": "area:home-assistant",
+    "color": "7057ff",
+    "description": "Home Assistant API, integrations and entity behavior."
+  },
+  {
+    "name": "area:tooling",
+    "color": "008672",
+    "description": "CI, mise, build pipeline, tests and development environment."
+  },
+  {
+    "name": "status:blocked",
+    "color": "b60205",
+    "description": "Cannot currently progress; identify the concrete blocking issue in the body."
+  },
+  {
+    "name": "needs:hardware",
+    "color": "d4c5f9",
+    "description": "Next meaningful verification requires access to the physical RF hardware."
+  },
+  {
+    "name": "needs:decision",
+    "color": "fef2c0",
+    "description": "Progress or implementation ownership depends on an unresolved decision."
+  },
+  {
+    "name": "kind:epic",
+    "color": "0b5394",
+    "description": "Parent tracking issue linking a coordinated set of work items."
+  }
+]
