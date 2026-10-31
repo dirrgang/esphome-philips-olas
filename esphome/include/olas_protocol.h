@@ -152,6 +152,18 @@ constexpr bool is_stateless_action(uint8_t function) {
          function == TIMER_1H || function == TIMER_3H || function == TIMER_6H;
 }
 
+// A request/observation is an event, not evidence of an active mode or timer.
+constexpr const char *action_event_type(uint8_t function, bool received) {
+  switch (function) {
+    case DIRECTION_TOGGLE: return received ? "direction_received" : "direction_requested";
+    case SLEEP: return received ? "sleep_received" : "sleep_requested";
+    case TIMER_1H: return received ? "timer_1h_received" : "timer_1h_requested";
+    case TIMER_3H: return received ? "timer_3h_received" : "timer_3h_requested";
+    case TIMER_6H: return received ? "timer_6h_received" : "timer_6h_requested";
+    default: return nullptr;
+  }
+}
+
 constexpr int white_preset(uint8_t function) {
   for (int i = 0; i < 3; ++i)
     if (WHITE_PRESETS[i] == function)

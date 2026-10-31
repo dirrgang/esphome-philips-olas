@@ -15,11 +15,21 @@ HA reflects commanded or overheard state, not independently confirmed telemetry.
 active mode. The three **Timer** buttons report neither a running timer nor
 remaining time. Sleep exit conditions and timer reset/replacement/cancellation
 remain unknown. Direction toggle and original-remote synchronization are
-user-confirmed on one test controller. Sleep/timer TX and physical effects still
-need the [manual action tests](docs/verification.md#manual-stateless-action-tests).
+user-confirmed on one test controller. Sleep starts the stopped fan when invoked
+from either HA or the original remote (user-observed). The user's description of
+dynamically varying speed is not a measured speed pattern. Timer activation/expiry
+and remaining sleep semantics still need the [manual action tests](docs/verification.md#manual-stateless-action-tests).
 Remote action commands synchronize the shared sequence and are logged, without
 pressing buttons or changing estimated fan/light state. Sleep or an unobserved
 timer expiry can therefore leave the fan estimate stale.
+
+**Aktion** is a native event entity for these five controls. It reports a type
+such as `sleep_requested` / `sleep_received` or `timer_1h_requested` /
+`timer_1h_received` and the last event's time in HA. `requested` means a local
+send request; `received` means an accepted RF command. Neither confirms an active
+mode/timer or RF delivery. In ESPHome's API logs these appear as `[S][event]`.
+Add the event entity to the HA dashboard or inspect its details/history; button
+entities themselves still have no persistent mode state.
 
 The light has no brightness or continuous Kelvin control. **Weißton** offers
 Warmweiß, Neutralweiß and Tageslichtweiß; choosing one sends only that preset,

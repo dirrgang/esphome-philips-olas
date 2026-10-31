@@ -155,11 +155,14 @@ remote_receiver:
           ESP_LOGI("olas", "RX function=0x%02X seq=%u",
                    unsigned(frame.function), unsigned(frame.sequence));
 
-          if (olas::is_stateless_action(frame.function))
-            return;  // Sequence/log only. Never press a button or infer state from RX.
+          // Guard synchronous event/state callbacks against RF echo.
+          olas::RfUpdateGuard guard(id(olas_rf_update));
+          if (const char *type = olas::action_event_type(frame.function, true)) {
+            id(olas_action).trigger(type);
+            return;  // Never press a button or infer a mode state from RX.
+          }
 
           // Publication is synchronous. Light output itself never transmits.
-          olas::RfUpdateGuard guard(id(olas_rf_update));
           const int speed = olas::speed_for_function(frame.function);
           if (speed >= 0) {
             id(olas_fan).state = speed != 0;
@@ -192,11 +195,30 @@ script:
             return;
           ESP_LOGI("olas", "TX requested function=0x%02X seq=%u",
                    unsigned(function), unsigned(seq));
+          if (const char *type = olas::action_event_type(function, false))
+            id(olas_action).trigger(type);
           const int preset = olas::white_preset(function);
           if (preset >= 0) {
             id(olas_white_preset) = preset;
             id(olas_white).publish_state(id(olas_white).traits.get_options()[preset]);
           }
+
+event:
+  - platform: template
+    id: olas_action
+    name: "${olas_fan_name} Aktion"
+    internal: ${olas_fan_internal}
+    event_types:
+      - direction_requested
+      - direction_received
+      - sleep_requested
+      - sleep_received
+      - timer_1h_requested
+      - timer_1h_received
+      - timer_3h_requested
+      - timer_3h_received
+      - timer_6h_requested
+      - timer_6h_received
 
 # Stateless commands share the fan/light sequence and startup/control/RX gates.
 button:

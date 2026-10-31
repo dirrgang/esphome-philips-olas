@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <vector>
 
@@ -128,9 +129,15 @@ int main() {
 
   const uint8_t stateless[] = {olas::DIRECTION_TOGGLE, olas::SLEEP,
                               olas::TIMER_1H, olas::TIMER_3H, olas::TIMER_6H};
+  const char *requested[] = {"direction_requested", "sleep_requested", "timer_1h_requested",
+                            "timer_3h_requested", "timer_6h_requested"};
+  const char *received[] = {"direction_received", "sleep_received", "timer_1h_received",
+                           "timer_3h_received", "timer_6h_received"};
   for (size_t i = 0; i < sizeof(stateless); ++i) {
     assert(stateless[i] == actions[12 + i]);  // Explicit captured-code expectations above.
     assert(olas::is_stateless_action(stateless[i]));
+    assert(std::strcmp(olas::action_event_type(stateless[i], false), requested[i]) == 0);
+    assert(std::strcmp(olas::action_event_type(stateless[i], true), received[i]) == 0);
     // RX mapping cannot claim fan power/speed, light power or a white preset.
     assert(olas::speed_for_function(stateless[i]) == -1);
     assert(olas::white_preset(stateless[i]) == -1);
@@ -145,8 +152,24 @@ int main() {
       assert(olas::send_command(tx, ID, CHECK_XOR, sequence, stateless[i], true, true, false));
     assert(tx.calls == before + 2 && sequence == ((seq + 2u) & 3u));
   }
-  for (uint8_t function : {uint8_t(0x40), uint8_t(0x7C), uint8_t(0x64), uint8_t(0x70), uint8_t(0x00)})
+  for (uint8_t function : {uint8_t(0x40), uint8_t(0x7C), uint8_t(0x64), uint8_t(0x70), uint8_t(0x00)}) {
     assert(!olas::is_stateless_action(function));
+    assert(olas::action_event_type(function, false) == nullptr);
+    assert(olas::action_event_type(function, true) == nullptr);
+  }
+
+  // Event callbacks are synchronous too. A received-action notification must
+  // never turn into TX or consume a second sequence, including nested callbacks.
+  for (auto function : stateless) {
+    const auto before = tx.calls;
+    sequence = olas::next_sequence(3);
+    {
+      olas::RfUpdateGuard guard(rf_update);
+      assert(olas::action_event_type(function, true) != nullptr);
+      assert(!olas::send_command(tx, ID, CHECK_XOR, sequence, function, true, true, rf_update));
+    }
+    assert(tx.calls == before && sequence == 2 && !rf_update);
+  }
 
   static_assert(olas::next_sequence(0) == 3);
   static_assert(olas::next_sequence(3) == 2);
