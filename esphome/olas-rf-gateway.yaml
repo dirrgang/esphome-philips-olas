@@ -155,6 +155,9 @@ remote_receiver:
           ESP_LOGI("olas", "RX function=0x%02X seq=%u",
                    unsigned(frame.function), unsigned(frame.sequence));
 
+          if (olas::is_stateless_action(frame.function))
+            return;  // Sequence/log only. Never press a button or infer state from RX.
+
           // Publication is synchronous. Light output itself never transmits.
           olas::RfUpdateGuard guard(id(olas_rf_update));
           const int speed = olas::speed_for_function(frame.function);
@@ -194,6 +197,39 @@ script:
             id(olas_white_preset) = preset;
             id(olas_white).publish_state(id(olas_white).traits.get_options()[preset]);
           }
+
+# Stateless commands share the fan/light sequence and startup/control/RX gates.
+button:
+  - platform: template
+    id: olas_direction_toggle
+    name: "${olas_fan_name} Drehrichtung wechseln"
+    internal: ${olas_fan_internal}
+    on_press:
+      - lambda: 'id(olas_send).execute(olas::DIRECTION_TOGGLE);'
+  - platform: template
+    id: olas_sleep
+    name: "${olas_fan_name} Schlafmodus auslösen"
+    internal: ${olas_fan_internal}
+    on_press:
+      - lambda: 'id(olas_send).execute(olas::SLEEP);'
+  - platform: template
+    id: olas_timer_1h
+    name: "${olas_fan_name} Timer 1 h"
+    internal: ${olas_fan_internal}
+    on_press:
+      - lambda: 'id(olas_send).execute(olas::TIMER_1H);'
+  - platform: template
+    id: olas_timer_3h
+    name: "${olas_fan_name} Timer 3 h"
+    internal: ${olas_fan_internal}
+    on_press:
+      - lambda: 'id(olas_send).execute(olas::TIMER_3H);'
+  - platform: template
+    id: olas_timer_6h
+    name: "${olas_fan_name} Timer 6 h"
+    internal: ${olas_fan_internal}
+    on_press:
+      - lambda: 'id(olas_send).execute(olas::TIMER_6H);'
 
 fan:
   - platform: template

@@ -9,7 +9,8 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
 
 - The receiver scans raw marks/spaces for a valid frame; the pure helper
   `esphome/include/olas_protocol.h` checks ID, checksum and framing.
-- Fan and binary-light `on_state`, and the white-preset select's `set_action`,
+- Fan and binary-light `on_state`, the white-preset select's `set_action`,
+  and direction/sleep/timer buttons' `on_press`
   invoke the same synchronous `olas_send` script. The portable `send_command`
   template uses the existing transmitter's TransmitCall API, encodes 41 bits,
   submits four identical copies, and decrements the shared 2-bit sequence once.
@@ -21,6 +22,10 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
   fan restore publication and light startup publication are suppressed for RF.
   Fan speed/off mapping and last nonzero speed retention remain unchanged.
 - Physical remote presses update the *commanded/observed* HA state.
+- Direction/sleep/timer RX updates only the same next-sequence and command log.
+  It never presses a button, retransmits or invents an absolute mode/timer state.
+  These five template buttons inherit `olas_fan_internal` and the shared sender's
+  control/startup/RX guards. No new counter, protocol or transport is introduced.
 - Passive learning uses the same RX callback with an opt-in 60-second window;
   unknown frames remain candidates, never automatic pairings or TX triggers.
 - Per-installation overlays and artifacts live under ignored `esphome/local/`;

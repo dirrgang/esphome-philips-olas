@@ -15,7 +15,8 @@ install GCC/Clang. CI continues to run the same test script directly.
 Tests include: bit packing, ID/check validation, seq wrap, six speeds and off,
 RAW decode with unrelated leading pulses, repeated frames and truncated input.
 The shared sender is exercised through a fake TransmitCall: all five light
-commands and six speeds/off, independent MSB-first pulse/check expectations,
+commands, direction/sleep/three timer actions and six speeds/off,
+independent MSB-first pulse/check expectations,
 four identical copies, one shared descending sequence including wraparound,
 invalid IDs/checks, startup/control-disabled gates and guarded RX callbacks
 that cannot submit TX. This does not execute ESPHome on hardware.
@@ -168,6 +169,27 @@ synchronization were subsequently confirmed by the user for PR #31 on one
 controller; see #8/PR #31 for execution evidence. This does not establish proxy
 LIGHT OFF TX or completion of the remaining regression rows. Overlapping-client,
 failure and retuning stress tests remain #24 work.
+
+## Manual stateless action tests
+
+Use the reviewed private profile and preserve installed access/rollback as above.
+These tests require deliberate user operation; builds and CI never send RF.
+Record firmware revision, RX and TX-request/completion logs, and observed physical
+effects separately in #11/#12/#13 and the PR, using neutral device labels.
+
+| Action | RX / HA expectation | TX expectation | Physical observation to record |
+|---|---|---|---|
+| Direction toggle `0x50`, under manufacturer-permitted operating conditions | Remote press logged, sequence synchronized; no absolute direction | One shared-path request per deliberate HA press; no request from RX | Actual reversal and any stop/start behaviour; repeat only deliberately |
+| Sleep `0x30` at several starting speeds | No assumed active mode or speed update | Same shared path and four copies | Observable pattern/side effects; repeat semantics; whether speed or OFF exits sleep |
+| Each timer `0x1C` / `0x18` / `0x14` | No active timer, remaining time or automatic fan-OFF estimate | Correct requested code and shared sequence | Initial response separately from a fully observed 1 h / 3 h / 6 h expiry |
+| Successive timer choices, repeated same timer, then speed/OFF | No inferred cancellation or replacement | Each deliberate press is one action | Reset, replacement, toggle/cancel behaviour; mark unknown if not observed |
+| Remote action → HA fan/light → remote action through wraparound | Sequence stays shared; no button replay or RX echo | Unchanged fan/light waveforms; no second sender | Device accepts alternating controls; all six speeds/off and light regressions |
+| Restart and control-disabled profile | No restored action or invented mode state; buttons hidden with fan | No startup TX; disabled control rejects actions | No unintended action; retain original-remote operation |
+
+The five new TX paths and their physical effects remain unverified until these
+tests are performed. Do not infer a full timer timeout test from an immediate
+response. Sleep and timer expiry may leave HA's previous fan estimate stale.
+Mixed-client arbitration remains separate #24 work.
 
 ## Targeted dimming experiment
 

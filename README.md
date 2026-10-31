@@ -6,8 +6,19 @@ Home Assistant fan, independent on/off light and three discrete white presets,
 receives original-remote commands and includes passive
 RF discovery. It is not an official Philips/Signify integration.
 
-Dimming, direction, sleep and timers are not implemented as entities.
+Dimming is not implemented. Stateless buttons send direction toggle, sleep mode
+and the 1 h / 3 h / 6 h timer commands through the same RF path as fan and light.
 HA reflects commanded or overheard state, not independently confirmed telemetry.
+
+**Drehrichtung wechseln** sends a toggle; it does not report forward/reverse.
+**Schlafmodus auslösen** sends the captured sleep opcode without reporting an
+active mode. The three **Timer** buttons report neither a running timer nor
+remaining time. Sleep exit conditions and timer reset/replacement/cancellation
+remain unknown. These five command codes have RX evidence; their TX and physical
+effects still need the [manual action tests](docs/verification.md#manual-stateless-action-tests).
+Remote action commands synchronize the shared sequence and are logged, without
+pressing buttons or changing estimated fan/light state. Sleep or an unobserved
+timer expiry can therefore leave the fan estimate stale.
 
 The light has no brightness or continuous Kelvin control. **Weißton** offers
 Warmweiß, Neutralweiß and Tageslichtweiß; choosing one sends only that preset,

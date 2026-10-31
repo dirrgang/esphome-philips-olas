@@ -83,6 +83,29 @@ logs and host checks; it does not establish a second device or mixed-client
 arbitration. See [#8](https://github.com/dirrgang/esphome-philips-olas/issues/8)
 and [PR #31](https://github.com/dirrgang/esphome-philips-olas/pull/31).
 
+## Stateless direction, sleep and timer actions
+
+Five template buttons submit `0x50`, `0x30`, `0x1C`, `0x18` and `0x14` through
+the same sender, check XOR, four-copy waveform and sequence as fan/light. Their
+RX path validates ID/check, retains the existing duplicate filter, synchronizes
+the next shared sequence and logs the command. It does not press the HA button,
+echo RF or change fan/light estimates. A deliberate repeated button press submits
+a new action with a new sequence; no automatic retry is added.
+
+- Direction `0x50` is a toggle, with no confirmed forward/reverse state.
+- Sleep `0x30` has unknown toggle/preset/pattern and exit semantics. No active
+  sleep state or inferred speed change is published.
+- Timer commands are labelled 1 h / 3 h / 6 h from captured remote functions.
+  Whether selections reset, toggle, cancel or replace timers is unknown. There
+  is no countdown, automatic cancellation or assumed HA fan-OFF at expiry.
+
+All five codes remain **RX-evidenced, physically unverified for TX**. A successful
+build or TX-request log does not change that status. Sleep operation and timer
+expiry may invalidate the retained fan estimate without an observable RF event.
+Evidence and semantic questions belong to [#11](https://github.com/dirrgang/esphome-philips-olas/issues/11),
+[#12](https://github.com/dirrgang/esphome-philips-olas/issues/12) and
+[#13](https://github.com/dirrgang/esphome-philips-olas/issues/13).
+
 ## Synthetic example
 
 - Test fixture ID `0x654321`, check XOR `0xA7`, speed 1, sequence 0:
