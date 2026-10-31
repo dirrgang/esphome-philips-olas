@@ -24,7 +24,7 @@ class CodecTests(unittest.TestCase):
         self.assertEqual(raw, 0xCA864281CE)
         self.assertEqual(rf.checksum(0x40, XOR), 0xE7)
         timings = rf.encode_timings(raw)
-        self.assertEqual(timings[:8], [7400, -1090, 730, -340, 340, -730, 730, -340])
+        self.assertEqual(timings[:8], [7400, -1090, 340, -730, 730, -340, 730, -340])
         self.assertEqual(timings[-2:], [340, -730])
         self.assertEqual(len(timings), 84)
 
