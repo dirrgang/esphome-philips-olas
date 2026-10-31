@@ -55,3 +55,7 @@ run = "python scripts/local.py upload"
 [tasks.install-local]
 description = "Compile a selected private profile, then install via its OTA/serial target"
 run = "python scripts/local.py install"
+
+[tasks.smoke-config]
+description = "Check that ESPHome rejects a deliberately broken synthetic include (offline)"
+run = "python scripts/ci_config_smoke.py"
