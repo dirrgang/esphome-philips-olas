@@ -17,10 +17,13 @@
 Use the pinned mise toolchain (`mise install` to provision it):
 
 - Codec changes: `mise run test` (Bash and C++17; Zig on Windows).
-- Reference YAML changes: `mise run config`, then `mise run compile` with
-  ignored `esphome/secrets.yaml` present.
-- Private hardware profiles: `mise run config-local`, then `mise run compile-local`.
-  `mise run init-local` creates the ignored workspace without replacing files.
+- Shared YAML changes: `mise run config`, then `mise run compile` use the
+  synthetic fixture. Never install that fixture or require real credentials.
+- Profile/tooling changes: `mise run test-profiles`. Secrets must resolve in
+  the selected private profile, never in the shared package.
+- Private profiles: `config-local` / `compile-local -- --profile <name>`;
+  `init-local` creates a profile without replacing files. `install-local`
+  builds then uploads via its selected `--target` (OTA/IP or serial).
 - Docs-only changes need link/consistency checks, not a firmware build.
 
 ## Hardware and evidence

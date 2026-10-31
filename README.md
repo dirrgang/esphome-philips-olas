@@ -37,46 +37,74 @@ Transitive Python packages and firmware tools do not yet have a full lockfile.
 
 ## Private hardware workspace
 
-Create a private profile from the supplied templates:
+Create one private profile per installation from the generic template:
 
 ```sh
-mise run init-local
-# Edit esphome/local/secrets.yaml with your own Wi-Fi/API/AP credentials.
-mise run config-local
-mise run compile-local
+mise run init-local -- --profile site-a
+mise run init-local -- --profile site-b
+# Edit each profile's gateway.yaml, secrets.yaml and targets.toml.
+mise run config-local -- --profile site-a
+mise run compile-local -- --profile site-a
 ```
 
 `init-local` preserves existing files. The entire **`esphome/local/`** directory
 is gitignored: keep profiles, secrets, captures, logs, firmware and supplied
 device exports there. Only generic templates belong in the public repository.
-The local profile includes the regular gateway and initially disables control
-and hides the fan while leaving the learning buttons available.
+Each `esphome/local/<profile>/` contains its own:
+
+- `gateway.yaml`: includes the shared gateway; supplies node/friendly/fan names,
+  RF control settings and optional hardware/network/debug overrides.
+- `secrets.yaml`: Wi-Fi, API/AP credentials and this target's fan ID/check.
+- `targets.toml`: named upload/log destinations (IP/host or serial port).
+- `.esphome/`: separate build/cache output for this profile.
+
+All profiles include the same `esphome/olas-rf-gateway.yaml`; its protocol code
+has no location-specific data or `!secret` lookups. Secrets are resolved explicitly
+in the private profile and passed into that shared package. Do not create
+`esphome/secrets.yaml`. Existing files there should be moved into the appropriate
+private profile. New profiles disable control and hide the fan while leaving
+learning available. The firmware currently controls **one fan ID per profile**.
 
 Before updating an existing device, compare the profile with its actual live
 configuration and preserve its Wi-Fi, API and encrypted OTA access. Compilation
-does not install firmware. After that comparison, upload explicitly:
+does not install firmware. Configure destinations in that profile's `targets.toml`:
 
-```sh
-mise run upload-local
-mise run logs-local
+```toml
+[targets.ota]
+device = "192.0.2.10" # Actual IP/host, or "OTA" to resolve the profile's node name.
+
+[targets.usb]
+device = "COM7" # Or /dev/ttyACM0; use the currently enumerated serial port.
 ```
 
-These tasks default to OTA. Set `OLAS_DEVICE` to a USB port when needed, or
-invoke ESPHome directly for bootloader/reset-specific handling. Select another
-private profile through `OLAS_LOCAL_CONFIG`. Machine-specific environment
-settings and tool-cache overrides belong in the gitignored `mise.local.toml`:
+Build and install the selected profile over the chosen transport:
+
+```sh
+mise run install-local -- --profile site-a --target ota
+mise run install-local -- --profile site-b --target usb
+mise run logs-local -- --profile site-a --target ota
+```
+
+Network installation uses ESPHome OTA with that profile's encryption credentials;
+logs use the encrypted native API. USB installation uses ESPHome's serial uploader;
+some boards require entering the bootloader manually. `install-local` only uploads
+after a successful build. `upload-local` is available for an already compiled
+profile; `config-local` and `compile-local` never upload.
+
+CLI selections override defaults in the ignored `mise.local.toml`:
 
 ```toml
 [env]
-OLAS_LOCAL_CONFIG = "esphome/local/gateway.yaml"
-# OLAS_DEVICE = "COM7"
+OLAS_PROFILE = "site-a"
+OLAS_TARGET = "ota"
 ```
 
-The reference can also be validated directly: copy `esphome/secrets.yaml.example`
-to `esphome/secrets.yaml`, fill all actual credentials **and RF parameters**,
-then run `mise run config` and `mise run compile`. The example RF values are
-disabled sentinels, not a working pairing. Use the private discovery profile
-when the target is unknown. The fallback AP has no web configuration interface.
+Without a selection the default profile is `default`, target `ota`.
+Machine-specific tool-cache overrides also belong in `mise.local.toml`.
+`mise run config` and `mise run compile` validate/build `esphome/validation.yaml`,
+a synthetic fixture using the same shared gateway. **Never install that fixture.**
+`mise run test-profiles` verifies credential isolation and target selection without
+hardware. The fallback AP has no web configuration interface.
 
 ## Discover a remote
 
@@ -88,8 +116,7 @@ Learning never transmits or saves a pairing automatically.
 Logs show a structural candidate ID, function, sequence, check and
 `xor_candidate` (command XOR received check). Compare several commands and
 sequences for a stable ID/check constant; timing recognition is not authentication.
-Store the confirmed values only in the private `secrets.yaml`. In the profile,
-replace the disabled RF sentinels with their `!secret` references, set
+Store the confirmed values only in that profile's private `secrets.yaml`, set
 `olas_control_enabled: "true"` and `olas_fan_internal: "false"`, then validate,
 compile, upload and perform the [hardware smoke test](docs/verification.md).
 

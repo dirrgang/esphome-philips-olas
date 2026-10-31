@@ -17,6 +17,10 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
   unknown frames remain candidates, never automatic pairings or TX triggers.
 - Per-installation overlays and artifacts live under ignored `esphome/local/`;
   public code and synthetic host fixtures are independent of those files.
+- Each profile resolves its own secrets and passes substitutions to the same
+  shared gateway package. That package never performs a `!secret` lookup.
+  Profile-local target files select IP/OTA or serial deployment independently
+  of the firmware configuration. Builds are isolated inside each profile.
 
 ## Why code is separated this way
 

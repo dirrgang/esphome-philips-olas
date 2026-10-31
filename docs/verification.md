@@ -19,18 +19,20 @@ one batch, malformed pulses, invalid tail bits and normal RX filtering.
 
 ## Integrated passive discovery
 
-Learning is part of `esphome/olas-rf-gateway.yaml`; use the usual `config` and
-`compile` tasks. An ignored `mise.local.toml` can set `OLAS_LOCAL_CONFIG` to
-a private overlay under `esphome/local/`, with its own network/API secrets,
-for `config-local` and `compile-local`. Keep locations and captures out of Git.
+Learning is part of the shared `esphome/olas-rf-gateway.yaml` package. Create
+a private profile with `mise run init-local -- --profile site-a`. It creates
+`gateway.yaml`, `secrets.yaml` and `targets.toml` under ignored
+`esphome/local/site-a/`, preserving existing files. The profile resolves all
+secrets itself, then passes values to the shared package; a root secrets file
+must never select another installation's credentials.
 
-Create the workspace with `mise run init-local`. It copies the generic profile
-and secrets examples to `esphome/local/` without overwriting existing files.
-Fill the private secrets, then run `mise run config-local` and
-`mise run compile-local`. Upload is a separate explicit `mise run upload-local`;
-`mise run logs-local` reads device logs. `OLAS_DEVICE` selects a USB port or
-address; the default is OTA. Store original exports, diagnostics and results
-inside this ignored directory, not beside the public examples.
+Fill the profile's names, RF parameters, credentials and targets, then run
+`mise run config-local -- --profile site-a` and `compile-local` with the same
+selection. `install-local -- --profile site-a --target ota` builds and uploads
+over the configured IP/host; `--target usb` selects that profile's serial port.
+Use `logs-local` with the same profile/target for diagnostics. Defaults may be
+set through `OLAS_PROFILE` and `OLAS_TARGET` in ignored `mise.local.toml`.
+Store private exports and raw captures inside the selected profile.
 
 For an unknown target, use `olas_control_enabled: "false"` and
 `olas_fan_internal: "true"`. Normal RX-state updates and fan TX are then
@@ -58,15 +60,19 @@ and expose the fan again. No persistent pairing or TX validation is claimed.
 ## ESPHome validation/compile
 
 Run with the ESPHome 2026.10.1 CLI installed by mise; these commands do not
-flash the device.
+flash the device and do not use real credentials. They use the synthetic
+`esphome/validation.yaml` fixture, which includes the regular shared package.
 
 ```bash
-cp esphome/secrets.yaml.example esphome/secrets.yaml
-# EDIT THE FILE: use the existing Wi-Fi, API and fallback AP secrets.
-# Keep the productive OTA settings; this reference uses encrypted OTA.
+mise run test-profiles
 mise run config
 mise run compile
 ```
+
+The profile tests deliberately place conflicting secrets beside the shared
+package, then validate two isolated profiles with different synthetic data.
+They also verify target selection and that a failed build prevents installation.
+They never contact hardware. Never flash the synthetic build fixture.
 
 ## Physical regression matrix
 
