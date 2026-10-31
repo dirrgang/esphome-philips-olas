@@ -89,9 +89,9 @@ class GatewayCore {
   size_t receive_raw(const int32_t *timings, size_t size, uint32_t now_ms) {
     size_t cursor = 0;
     size_t accepted = 0;
-    uint64_t raw;
-    while (next_raw_frame(timings, size, cursor, raw)) {
-      if (receive_frame(raw, now_ms))
+    Frame candidate;
+    while (next_raw_candidate(timings, size, cursor, candidate)) {
+      if (receive_frame(candidate.raw, now_ms))
         ++accepted;
     }
     return accepted;

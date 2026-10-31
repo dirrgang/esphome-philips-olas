@@ -137,14 +137,4 @@ inline bool decode_raw(const int32_t *timings, size_t size, uint32_t expected_id
   return false;
 }
 
- // Compatibility with core's structural iterator; reuse the shared candidate parser.
-inline bool next_raw_frame(const int32_t *timings, size_t size, size_t &cursor,
-                           uint64_t &out) {
-  Frame candidate;
-  if (!next_raw_candidate(timings, size, cursor, candidate))
-    return false;
-  out = candidate.raw;
-  return true;
-}
-
 }  // namespace olas

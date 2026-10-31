@@ -105,8 +105,8 @@ int main() {
   assert(batched.receive_raw(nullptr, 1000, 0) == 0);
   assert(batched.receive_raw(timings.data(), 0, 0) == 0);
   size_t cursor = timings.size() + 1;
-  uint64_t raw;
-  assert(!olas::next_raw_frame(timings.data(), timings.size(), cursor, raw));
+  olas::Frame candidate;
+  assert(!olas::next_raw_candidate(timings.data(), timings.size(), cursor, candidate));
 
   olas::Device low(0, 0), high(0xFFFFFF, 0xFF);
   olas::GatewayCore boundaries;

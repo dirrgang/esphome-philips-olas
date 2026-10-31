@@ -49,9 +49,11 @@ This document describes the implementation in this checkout.
 ## Experimental receive-only multi-device core (PR #21)
 
 An optional external ESPHome component lives in `components/olas/`; it is
-not part of the currently deployed shared YAML/package. It uses the same pure
-41-bit codec as the single-device gateway via
-`esphome/include/olas_protocol.h`. The lightweight `GatewayCore` scans one
+not part of the currently deployed shared YAML/package. It uses a byte-identical copy of the single-device gateway's pure 41-bit
+codec, checked by `scripts/test-core.sh`. ESPHome copies `esphome.includes`
+headers into generated build directories, so a relative forwarding include to
+the optional component fails compilation; both standalone headers deliberately
+remain self-contained until architecture ownership is decided. The lightweight `GatewayCore` scans one
 receiver batch and dispatches structurally valid candidate frames to configured
 24-bit addresses. Each logical device owns its check XOR, independently
 estimated fan state, descending 2-bit sequence and bounded dedup history.
