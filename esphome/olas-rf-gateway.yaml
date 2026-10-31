@@ -7,6 +7,7 @@ substitutions:
   olas_protocol_header: include/olas_protocol.h
   olas_control_enabled: "true"
   olas_fan_internal: "false"
+  olas_light_internal: ${olas_fan_internal}
   olas_fan_id: "0x000000"
   olas_check_xor: "0x00"
   olas_node_name: olas-rf-gateway
@@ -24,6 +25,12 @@ esphome:
   friendly_name: ${olas_friendly_name}
   includes:
     - ${olas_protocol_header}
+  on_boot:
+    priority: -100
+    then:
+      - globals.set:
+          id: olas_ready
+          value: "true"
 
 esp32:
   variant: esp32s2
@@ -71,6 +78,16 @@ remote_transmitter:
       - cc1101.begin_rx
 
 globals:
+  - id: olas_ready
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+  - id: olas_white_preset
+    type: int
+    restore_value: no
+    initial_value: '-1'
+
   - id: olas_seq
     type: uint8_t
     restore_value: no
@@ -138,17 +155,45 @@ remote_receiver:
           ESP_LOGI("olas", "RX function=0x%02X seq=%u",
                    unsigned(frame.function), unsigned(frame.sequence));
 
+          // Publication is synchronous. Light output itself never transmits.
+          olas::RfUpdateGuard guard(id(olas_rf_update));
           const int speed = olas::speed_for_function(frame.function);
-          if (speed < 0)
-            return;  // light, timer, direction: observed but not yet mapped
+          if (speed >= 0) {
+            id(olas_fan).state = speed != 0;
+            if (speed != 0)
+              id(olas_fan).speed = speed;
+            id(olas_fan).publish_state();
+          } else if (frame.function == olas::LIGHT_ON || frame.function == olas::LIGHT_OFF) {
+            const bool on = frame.function == olas::LIGHT_ON;
+            id(olas_light).remote_values.set_state(on);
+            id(olas_light).current_values.set_state(on);
+            id(olas_light).publish_state();
+          } else {
+            const int preset = olas::white_preset(frame.function);
+            if (preset >= 0) {
+              id(olas_white_preset) = preset;
+              id(olas_white).publish_state(id(olas_white).traits.get_options()[preset]);
+            }
+          }
 
-          // publish_state() triggers fan.on_state. Guard against RF echo.
-          id(olas_rf_update) = true;
-          id(olas_fan).state = speed != 0;
-          if (speed != 0)
-            id(olas_fan).speed = speed;
-          id(olas_fan).publish_state();
-          id(olas_rf_update) = false;
+script:
+  - id: olas_send
+    parameters:
+      function: uint8_t
+    then:
+      - lambda: |-
+          const uint8_t seq = id(olas_seq);
+          if (!olas::send_command(*id(olas_tx), ${olas_fan_id}, ${olas_check_xor},
+                                  id(olas_seq), function, ${olas_control_enabled},
+                                  id(olas_ready), id(olas_rf_update)))
+            return;
+          ESP_LOGI("olas", "TX requested function=0x%02X seq=%u",
+                   unsigned(function), unsigned(seq));
+          const int preset = olas::white_preset(function);
+          if (preset >= 0) {
+            id(olas_white_preset) = preset;
+            id(olas_white).publish_state(id(olas_white).traits.get_options()[preset]);
+          }
 
 fan:
   - platform: template
@@ -168,26 +213,51 @@ fan:
             if (speed < 0 || speed > 6)
               return;
 
-            constexpr uint32_t FAN_ID = ${olas_fan_id};
-            constexpr uint8_t CHECK_XOR = ${olas_check_xor};
-            const uint8_t seq = id(olas_seq) & 0x03u;
-            const uint8_t cmd = olas::make_command(
-                olas::function_for_speed(speed), seq);
-            const uint64_t frame = olas::encode_frame(FAN_ID, cmd, CHECK_XOR);
+            id(olas_send).execute(olas::function_for_speed(speed));
 
-            auto call = id(olas_tx).transmit();
-            auto *data = call.get_data();
-            data->item(7400, 1090);
-            for (int bit = 40; bit >= 0; --bit) {
-              if ((frame >> bit) & 1ULL)
-                data->item(730, 340);
-              else
-                data->item(340, 730);
+# LightState writes outputs later from loop(), after the scoped RX guard ends.
+# Keep this output inert; RF belongs only to synchronous on_state publication.
+output:
+  - platform: template
+    id: olas_light_output
+    type: binary
+    write_action:
+      - lambda: 'return;'
+
+light:
+  - platform: binary
+    id: olas_light
+    name: "${olas_fan_name} Licht"
+    internal: ${olas_light_internal}
+    output: olas_light_output
+    restore_mode: ALWAYS_OFF
+    on_state:
+      - lambda: |-
+          id(olas_send).execute(id(olas_light).remote_values.is_on()
+                               ? olas::LIGHT_ON : olas::LIGHT_OFF);
+
+select:
+  - platform: template
+    id: olas_white
+    name: "${olas_fan_name} Weißton"
+    internal: ${olas_light_internal}
+    options:
+      - Warmweiß
+      - Neutralweiß
+      - Tageslichtweiß
+    # No initial/restore option: unknown until commanded or heard.
+    update_interval: never
+    lambda: |-
+      const int preset = id(olas_white_preset);
+      if (preset < 0)
+        return {};
+      return id(olas_white).traits.get_options()[preset];
+    set_action:
+      - lambda: |-
+          const auto &options = id(olas_white).traits.get_options();
+          for (size_t i = 0; i < options.size(); ++i) {
+            if (x == options[i]) {
+              id(olas_send).execute(olas::WHITE_PRESETS[i]);
+              return;
             }
-            call.set_send_times(4);
-            call.set_send_wait(0);
-            call.perform();
-
-            id(olas_seq) = olas::next_sequence(seq);
-            ESP_LOGI("olas", "TX fan speed=%d function=0x%02X seq=%u",
-                     speed, unsigned(olas::function_code(cmd)), unsigned(seq));
+          }

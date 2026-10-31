@@ -14,6 +14,11 @@ install GCC/Clang. CI continues to run the same test script directly.
 
 Tests include: bit packing, ID/check validation, seq wrap, six speeds and off,
 RAW decode with unrelated leading pulses, repeated frames and truncated input.
+The shared sender is exercised through a fake TransmitCall: all five light
+commands and six speeds/off, independent MSB-first pulse/check expectations,
+four identical copies, one shared descending sequence including wraparound,
+invalid IDs/checks, startup/control-disabled gates and guarded RX callbacks
+that cannot submit TX. This does not execute ESPHome on hardware.
 Discovery tests also cover unknown IDs/non-default checks, multiple devices in
 one batch, malformed pulses, invalid tail bits and normal RX filtering.
 
@@ -117,7 +122,9 @@ They never contact hardware. Never flash the synthetic build fixture.
 
 This is a reusable test procedure, not an execution tracker. Record firmware
 revision, sanitized observations and acceptance progress in the relevant issue
-or PR. [Issue #3](https://github.com/dirrgang/esphome-philips-olas/issues/3)
+or PR. Use neutral device labels in public reports; omit installation locations,
+private profile names, personal identifiers and private network addresses.
+[Issue #3](https://github.com/dirrgang/esphome-philips-olas/issues/3)
 contains baseline regression evidence; a smoke test does not establish every
 edge case. Keep actual identifiers and captures in the ignored workspace.
 
@@ -132,6 +139,35 @@ edge case. Keep actual identifiers and captures in the ignored workspace.
 | Remotes and HA alternating | Seq remains operable |
 | Two quick presses of same function | Do not lose genuine press |
 | Restart ESP32 with fan running | Do not claim confirmed state |
+
+## Manual light and shared-TX regression
+
+Use a reviewed private profile, preserve the working firmware/configuration for
+rollback, and compare with the installed configuration before an authorized
+flash. Use 3.3 V and a suitable 433 MHz antenna. These are manual procedures;
+CI/Codex must not flash or send RF. Record **RX logs**, **TX request/completion
+logs**, and **independent physical response** separately in the PR / issues
+[#5](https://github.com/dirrgang/esphome-philips-olas/issues/5),
+[#8](https://github.com/dirrgang/esphome-philips-olas/issues/8),
+[#14](https://github.com/dirrgang/esphome-philips-olas/issues/14) and
+[#24](https://github.com/dirrgang/esphome-philips-olas/issues/24).
+
+| Manual action | RX / HA check | TX check | Physical check |
+|---|---|---|---|
+| HA light ON `0x7C`, then OFF `0xBC`, fan stopped and running | HA power estimate independent of fan | One logical request each, four identical copies; next sequence once | Lamp follows; fan unaffected |
+| HA Warmweiß `0x6C`, Neutralweiß `0x64`, Tageslichtweiß `0x84` | Exactly three select choices; no brightness/Kelvin | Each code individually, no extra power command | Observe each white tone, power side effects and fan behaviour separately |
+| Remote each of the five light commands | Matching HA power or preset; other estimate retained | No Olas TX request from RX publication | Lamp responds to remote; no second action/echo |
+| Alternate HA fan/light and remote fan/light through sequence wrap | Shared next-sequence follows accepted remote commands | Correct code/sequence, unchanged timings/copies | All six fan speeds/off and light still work |
+| Repeat identical button twice, then rapid distinct commands | New sequence accepted; existing 400 ms exact-frame dedup retained | Both deliberate HA requests submitted; copies do not consume sequences | Legitimate presses retained; record losses rather than assume delivery |
+| Restart ESP with lamp/fan running; remote use while gateway offline | Light OFF is a UI assumption, preset unknown; stale fan state documented | No Olas startup/restore TX | No physical change caused by restart; deliberate next command recovers estimate |
+| Native fan → proxy LIGHT ON → native light OFF, with completion/RX recovery between clients | Receive a fresh remote press before returning to native sequence tracking | Same transmitter, TX/RX hooks recover; no concurrent clients | Record every transition independently; stop on RX loss |
+
+Generic proxy LIGHT ON and subsequent original-remote LIGHT OFF have physical
+evidence in #8/#24. Native light ON/OFF, all three white presets and remote/HA
+synchronization were subsequently confirmed by the user for PR #31 on one
+controller; see #8/PR #31 for execution evidence. This does not establish proxy
+LIGHT OFF TX or completion of the remaining regression rows. Overlapping-client,
+failure and retuning stress tests remain #24 work.
 
 ## Targeted dimming experiment
 

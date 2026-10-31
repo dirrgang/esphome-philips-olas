@@ -58,7 +58,7 @@ constexpr uint8_t candidate_check_xor(const Frame &frame) {
 constexpr bool decode_frame(uint64_t raw, uint32_t expected_id, uint8_t check_xor,
                             Frame &out) {
   Frame candidate;
-  if (!unpack_candidate(raw, candidate) ||
+  if (expected_id > MASK_ID || !unpack_candidate(raw, candidate) ||
       candidate.fan_id != (expected_id & MASK_ID) ||
       candidate.check != checksum(candidate.command, check_xor))
     return false;
@@ -135,6 +135,54 @@ inline bool decode_raw(const int32_t *timings, size_t size, uint32_t expected_id
       return true;
   }
   return false;
+}
+
+constexpr uint8_t LIGHT_ON = 0x7C;
+constexpr uint8_t LIGHT_OFF = 0xBC;
+constexpr uint8_t WHITE_PRESETS[] = {0x6C, 0x64, 0x84};
+
+constexpr int white_preset(uint8_t function) {
+  for (int i = 0; i < 3; ++i)
+    if (WHITE_PRESETS[i] == function)
+      return i;
+  return -1;
+}
+
+// Use around synchronous entity publication; callbacks must never echo RX.
+class RfUpdateGuard {
+ public:
+  explicit RfUpdateGuard(bool &flag) : flag_(flag), previous_(flag) { flag_ = true; }
+  ~RfUpdateGuard() { flag_ = previous_; }
+  RfUpdateGuard(const RfUpdateGuard &) = delete;
+  RfUpdateGuard &operator=(const RfUpdateGuard &) = delete;
+ private:
+  bool &flag_;
+  bool previous_;
+};
+
+// Duck-typed ESPHome TransmitCall API, also exercised by a host fake. No radio
+// ownership, queue or framework dependency. True means submitted, NOT delivered.
+template<typename Transmitter>
+bool send_command(Transmitter &tx, uint32_t address, uint8_t check_xor,
+                  uint8_t &sequence, uint8_t function, bool enabled,
+                  bool ready, bool rf_update) {
+  if (!enabled || !ready || rf_update || address > MASK_ID ||
+      (speed_for_function(function) < 0 && function != LIGHT_ON &&
+       function != LIGHT_OFF && white_preset(function) < 0))
+    return false;
+  const auto raw = encode_frame(address, make_command(function, sequence), check_xor);
+  auto call = tx.transmit();
+  auto *data = call.get_data();
+  data->item(7400, 1090);
+  for (int bit = BITS_PER_FRAME - 1; bit >= 0; --bit) {
+    const bool one = (raw >> bit) & 1u;
+    data->item(one ? 730 : 340, one ? 340 : 730);
+  }
+  call.set_send_times(4);
+  call.set_send_wait(0);
+  call.perform();
+  sequence = next_sequence(sequence);
+  return true;
 }
 
 }  // namespace olas

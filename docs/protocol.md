@@ -57,11 +57,11 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 | Fan speed 4 | `0x20` | RX and TX physically tested |
 | Fan speed 5 | `0x80` | RX and TX physically tested |
 | Fan speed 6 | `0x8C` | RX and TX physically tested |
-| Light on | `0x7C` | RX and generic RF-proxy TX physically verified (2026-10-31; #23) |
-| Light off | `0xBC` | RX only |
-| Warm white | `0x6C` | RX only |
-| **Neutral white** | **`0x64`** | **RX only, newly identified** |
-| Daylight white | `0x84` | RX only |
+| Light on | `0x7C` | Native TX and remote/HA sync user-confirmed; proxy TX also verified |
+| Light off | `0xBC` | Native TX and remote/HA sync user-confirmed |
+| Warm white | `0x6C` | Native TX and remote/HA sync user-confirmed |
+| **Neutral white** | **`0x64`** | **Native TX and remote/HA sync user-confirmed** |
+| Daylight white | `0x84` | Native TX and remote/HA sync user-confirmed |
 | Brightness up | `0x70` | RX only |
 | Brightness down | `0x28` | RX only |
 | Reverse direction | `0x50` | RX only; toggling semantics |
@@ -71,6 +71,17 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 | Timer 6 h | `0x14` | RX only |
 
 **Note:** The upstream command table does not yet include neutral white `0x64`.
+
+The gateway sends light power and the three white presets through the same
+41-bit/four-copy path and sequence as the fan. Preset RX updates the discrete
+selection only; its effect on power is not inferred. Encoding/host validation
+does not establish physical TX success. On 2026-10-31 the user confirmed successful
+installation and physical testing of native light ON/OFF, all three white presets
+and original-remote synchronization on the test controller with PR #31's
+implementation (`30819f4`). This is user-observed evidence, separate from device
+logs and host checks; it does not establish a second device or mixed-client
+arbitration. See [#8](https://github.com/dirrgang/esphome-philips-olas/issues/8)
+and [PR #31](https://github.com/dirrgang/esphome-philips-olas/pull/31).
 
 ## Synthetic example
 
