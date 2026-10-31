@@ -45,6 +45,13 @@ Host tests require Bash and C++17. On Windows, install Git for Windows in its
 standard location for Git Bash; mise supplies Zig 0.15.2. Unix uses GCC/Clang.
 Transitive Python packages and firmware tools do not yet have a full lockfile.
 
+The separate [ESPHome firmware CI](.github/workflows/esphome.yml) validates the
+synthetic gateway configuration, asserts a deliberately broken include is
+rejected, and compiles ESP32-S2 firmware on relevant PRs/pushes. Reproduce with
+`mise run config`, `mise run smoke-config` and `mise run compile`. No CI
+job flashes hardware or performs physical RF tests; see
+[verification](docs/verification.md).
+
 ## Generic RF proxy diagnostic (experimental)
 
 The receive-only diagnostic uses ESPHome's encrypted native API and does not
