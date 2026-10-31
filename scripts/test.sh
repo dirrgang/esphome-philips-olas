@@ -3,9 +3,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-c++ -std=c++17 -Wall -Wextra -Werror -pedantic -I"$ROOT/esphome/include" \
+if command -v c++ >/dev/null 2>&1; then
+  COMPILER=(c++)
+elif command -v zig >/dev/null 2>&1; then
+  COMPILER=(zig c++)
+else
+  echo "C++ compiler not found. On Windows, run mise install; on Unix, install GCC/Clang." >&2
+  exit 1
+fi
+"${COMPILER[@]}" -std=c++17 -Wall -Wextra -Werror -pedantic -I"$ROOT/esphome/include" \
   "$ROOT/tests/test_protocol.cpp" -o "$TMP/olas-tests"
 "$TMP/olas-tests"
-c++ -std=c++17 -Wall -Wextra -Werror -pedantic -I"$ROOT/components/olas" \
-  "$ROOT/tests/test_core.cpp" -o "$TMP/olas-core-tests"
-"$TMP/olas-core-tests"

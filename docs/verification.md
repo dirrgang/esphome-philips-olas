@@ -8,93 +8,91 @@ mise run test
 ```
 
 This task invokes `bash scripts/test.sh`. Bash and a C++17 compiler are
-required (use WSL on Windows). CI continues to run the same test script directly.
+required. On native Windows, use Git Bash from Git for Windows; `mise install`
+provides Zig 0.15.2, whose C++ frontend runs the same test suite. On Linux/macOS,
+install GCC/Clang. CI continues to run the same test script directly.
 
 Tests include: bit packing, ID/check validation, seq wrap, six speeds and off,
 RAW decode with unrelated leading pulses, repeated frames and truncated input.
-The multi-device core suite adds two synthetic address/check pairs, mixed-address
-batches, independent counters/filter/state, malformed and unknown frames, retained
-speed while off, unmapped functions and millisecond-counter wrap.
+Discovery tests also cover unknown IDs/non-default checks, multiple devices in
+one batch, malformed pulses, invalid tail bits and normal RX filtering.
+
+## Integrated passive discovery
+
+Learning is part of the shared `esphome/olas-rf-gateway.yaml` package. Create
+a private profile with `mise run init-local -- --profile site-a`. It creates
+`gateway.yaml`, `secrets.yaml` and `targets.toml` under ignored
+`esphome/local/site-a/`, preserving existing files. The profile resolves all
+secrets itself, then passes values to the shared package; a root secrets file
+must never select another installation's credentials.
+
+Fill the profile's names, RF parameters, credentials and targets, then run
+`mise run config-local -- --profile site-a` and `compile-local` with the same
+selection. `install-local -- --profile site-a --target ota` builds and uploads
+over the configured IP/host; `--target usb` selects that profile's serial port.
+Use `logs-local` with the same profile/target for diagnostics. Defaults may be
+set through `OLAS_PROFILE` and `OLAS_TARGET` in ignored `mise.local.toml`.
+Store private exports and raw captures inside the selected profile.
+
+For an unknown target, use `olas_control_enabled: "false"` and
+`olas_fan_internal: "true"`. Normal RX-state updates and fan TX are then
+disabled and the RF proxy package is excluded. The internal fan cannot be
+controlled from HA. No placeholder-derived RF command should be transmitted.
+The learning feature itself is passive, including when normal control is on.
+After comparing against the actually flashed config and preserving access,
+upload the regular gateway with the selected profile, connect HA and open logs.
+Press **RF lernen (60 s)**, then deliberately press speed 1, speed 2 and off
+on exactly one remote. Stop early with **RF Lernen stoppen** if needed.
+
+Expected: stable ID, matching function codes, changing 2-bit sequence and a
+consistent `xor_candidate` across several presses. The log labels all frames
+as candidates because their check rule is unknown. Noise and unrelated devices
+can still match the pulse structure; timing recognition is not authentication.
+Multiple different candidates in one batch are examined. Consecutive copies
+of the same raw frame within 400 ms are suppressed only in diagnostic logging.
+
+Confirm that no candidate logs appear outside the window, the window ends
+after 60 seconds and reboot leaves it inactive. Record sanitized observations
+in the relevant GitHub issue/PR and keep raw captures private. Only then fill
+the intended device's RF settings, enable RF control
+and expose the fan again. No persistent pairing or TX validation is claimed.
 
 ## ESPHome validation/compile
 
 Run with the ESPHome 2026.10.1 CLI installed by mise; these commands do not
-flash the device.
+flash the device and do not use real credentials. They use the synthetic
+`esphome/validation.yaml` fixture, which includes the regular shared package.
 
 ```bash
-cp esphome/secrets.yaml.example esphome/secrets.yaml
-# EDIT THE FILE: replace Wi-Fi, HA API and OTA credentials.
+mise run test-profiles
 mise run config
 mise run compile
 ```
 
-If `esphome/secrets.yaml` already exists, keep it; do not overwrite live
-credentials. Config output and generated sources can contain secrets, so retain
-them locally and do not attach full configuration/build artifacts to issues.
+The profile tests deliberately place conflicting secrets beside the shared
+package, then validate two isolated profiles with different synthetic data.
+They also verify target selection and that a failed build prevents installation.
+They never contact hardware. Never flash the synthetic build fixture.
 
-For the receive-only external-component fixture (no secrets required):
+## Physical regression matrix
 
-```bash
-mise run test-schema
-mise run config-core
-mise run compile-core
-```
+This is a reusable test procedure, not an execution tracker. Record firmware
+revision, sanitized observations and acceptance progress in the relevant issue
+or PR. [Issue #3](https://github.com/dirrgang/esphome-philips-olas/issues/3)
+contains baseline regression evidence; a smoke test does not establish every
+edge case. Keep actual identifiers and captures in the ignored workspace.
 
-`test-schema` invokes the pinned CLI on positive and negative configurations,
-including duplicate addresses/IDs, empty/missing devices, invalid address/check
-values (including booleans) and missing/wrong-type RX/TX references. CI runs host
-and schema suites; firmware builds are local checks in this PR. The fixture uses
-synthetic pairs and has no entities or transmit actions. **Never flash it.**
-
-## Recorded local evidence — 2026-10-31
-
-Environment: mise-managed Python 3.13.18, uv 0.12.10, ESPHome **2026.10.1**,
-ESP-IDF **5.5.6**, target **ESP32-S2**. All commands below were actually run.
-
-| Tier | Command | Observed result |
-|---|---|---|
-| Toolchain | `mise install` | All three pinned tools already installed; succeeded |
-| Host C++17 | `mise run test` | `Olas protocol tests passed`; `Olas multi-device core tests passed` |
-| ESPHome schema | `mise run test-schema` | 8 unittest methods and their invalid-input subcases passed |
-| Reference config | `mise run config` | `Configuration is valid!` (local secrets withheld) |
-| Core fixture config | `mise run config-core` | `Configuration is valid!` |
-| Reference firmware | `mise run compile` | `Successfully compiled program.` |
-| Core fixture firmware | `mise run compile-core` | `Successfully compiled program.` |
-| Physical hardware | No flash or smoke test | **Unverified** (#3 / #20) |
-
-Static build reports: reference RAM 120,956 / 172,032 bytes (70.3%), flash
-763,478 / 1,835,008 bytes (41.6%); core fixture RAM 62,540 / 172,032 bytes
-(36.4%), flash 245,462 / 1,835,008 bytes (13.4%). These are build metrics, not
-runtime free-heap measurements. The minimal fixture omits Wi-Fi/API/entities and
-cannot predict resource usage of the future two-fan integration.
-
-Non-fatal notices: the existing reference warns about OTA password overhead and
-implicit `non_blocking: true`; the fixture sets nonblocking explicitly. The
-toolchain reported a missing `esp_blockdev` CMakeLists and a read-only component
-list cache on its first fixture build; compilation still succeeded. No baseline
-RF settings or credential files were changed to silence these notices.
-
-The user-supplied 2026-10-30 build is also recorded in
-[#2](https://github.com/dirrgang/esphome-philips-olas/issues/2#issuecomment-6533201667).
-Compilation does not establish physical actuation, correct RMT capture under
-load, the second remote's address/check, or independent control of both fans.
-
-## Physical test matrix (must be performed after merging the refactor)
-
-| Action | Expected | Actual |
-|---|---|---|
-| HA: off → speed 1 | Fan starts, no errors | pending |
-| HA: speed 1 → 3 → 6 | Correct fan speed | pending |
-| HA: speed 6 → off | Stops, last speed retained | pending |
-| HA: off → speed 4 | Starts at 4 | pending |
-| Remote: speed 1 → 6 | HA sync without RF echo | pending |
-| Remote: off | HA updates OFF, no TX | pending |
-| Remotes and HA alternating | Seq remains operable | pending |
-| Two quick presses of same function | Do not lose genuine press | pending |
-| Restart ESP32 with fan running | Do not claim confirmed state | pending |
-
-Mark these as tested only after on-device verification; the equivalent
-pre-refactor features worked in the prior prototype.
+| Action | Expected |
+|---|---|
+| HA: off → speed 1 | Fan starts, no errors |
+| HA: speed 1 → 3 → 6 | Correct fan speed |
+| HA: speed 6 → off | Stops, last speed retained |
+| HA: off → speed 4 | Starts at 4 |
+| Remote: speed 1 → 6 | HA sync without RF echo |
+| Remote: off | HA updates OFF, no TX |
+| Remotes and HA alternating | Seq remains operable |
+| Two quick presses of same function | Do not lose genuine press |
+| Restart ESP32 with fan running | Do not claim confirmed state |
 
 ## Targeted dimming experiment
 
@@ -108,3 +106,22 @@ limited controlled window to avoid collecting unrelated RF identifiers.
 2. Recheck actual RX/TX pins, SPI, CC1101 Chip ID, and mode transitions.
 3. Collect only the minimal relevant logs and observed physical behaviour.
 4. Revert instead of stacking unverified changes.
+
+## Receive-only multi-device core — host/compile checks (#21)
+
+The optional external component is independent of the existing profile/learning
+firmware. Its fixture uses synthetic Olas ID/check combinations only:
+
+```bash
+mise run test-core
+mise run test-schema
+mise run config-core
+mise run compile-core
+```
+
+The host C++ core tests cover independently addressed devices, address and XOR
+isolation, sequence wrap, deduplication, mixed batches, bad frames and rollover.
+Schema tests check typed receiver/transmitter references, invalid addresses,
+duplicated IDs and checks. **Config/compile or host checks do not prove any
+physical multi-fan behaviour.** Do not flash the synthetic fixture.
+The refactored component's role remains conditional on #22/#27.

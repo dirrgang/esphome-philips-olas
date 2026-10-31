@@ -1,0 +1,38 @@
+# Learning is always available in the regular gateway; never starts by itself.
+esphome:
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            ESP_LOGI("olas.learn", "RF learning ready; capture inactive.");
+
+globals:
+  - id: olas_learning_active
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+script:
+  - id: olas_learn_window
+    mode: restart
+    then:
+      - lambda: |-
+          id(olas_learning_active) = true;
+          ESP_LOGI("olas.learn", "Learning for 60 s; press only the intended remote. Candidates are unverified.");
+      - delay: 60s
+      - lambda: |-
+          id(olas_learning_active) = false;
+          ESP_LOGI("olas.learn", "Learning window closed.");
+
+button:
+  - platform: template
+    name: "RF lernen (60 s)"
+    on_press:
+      - script.execute: olas_learn_window
+  - platform: template
+    name: "RF Lernen stoppen"
+    on_press:
+      - script.stop: olas_learn_window
+      - lambda: |-
+          id(olas_learning_active) = false;
+          ESP_LOGI("olas.learn", "Learning stopped.");

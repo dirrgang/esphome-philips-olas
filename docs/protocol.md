@@ -28,12 +28,19 @@ bits 40–17    16–11           10–9        8–1           0
 
 - Sequence cycles downward modulo 4: 2 → 1 → 0 → 3 → 2.
 - All frame copies during one physical press use the same sequence.
-- Observed local device ID: `0xAA8C03`.
-- Observed local integrity check: `check = command XOR 0x25`.
+- An independently observed remote used `check = command XOR 0x25`.
 - Upstream firmware currently implements `command XOR 0x5B` for its device.
-- **Unproven hypothesis:** local `0x25` = `0xAA XOR 0x8C XOR 0x03`, so the
-  check might be derived from all ID bytes. More than one real pairing is
-  required to distinguish this from device-specific fixed constants.
+- **Unproven hypothesis:** XOR of the three ID bytes matched the observed
+  constant for one remote. This does not establish a general derivation rule;
+  keep the check constant configurable and verify each pairing independently.
+- Receive-only discovery can parse complete structural candidates without an
+  expected ID/check. Its `xor_candidate = command XOR received_check` is only
+  an observation from that frame, not an integrity check or pairing result.
+  Verify a consistent candidate across different commands and sequences for
+  each intended remote before configuring control. Compatibility is per target.
+- Discovery execution evidence is recorded in
+  [GitHub issue #15](https://github.com/dirrgang/esphome-philips-olas/issues/15);
+  a consistent capture does not establish a universal derivation rule.
 - This protocol is not authenticated or encrypted. Do not publish captures of
   personal remotes if their IDs matter to your threat model.
 
@@ -65,11 +72,11 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 
 **Note:** The upstream command table does not yet include neutral white `0x64`.
 
-## Examples from local captures
+## Synthetic example
 
-- `ID=AA8C03`, speed 1, `seq=0`: `command=0x40`, `check=0x65`.
-- `ID=AA8C03`, speed 2, `seq=1`: `command=0xAD`, `check=0x88`.
-- The test transmitter successfully sent speed 1 using the local checksum.
+- Test fixture ID `0x654321`, check XOR `0xA7`, speed 1, sequence 0:
+  `command=0x40`, `check=0xE7`, packed frame `0xCA864281CE`.
+- These values are synthetic; real identifiers and captures remain private.
 
 ## Interpreting an ESPHome RAW log
 
@@ -81,22 +88,3 @@ bit `1`, bit `0`, etc. Ignore noise and nonmatching 433 MHz devices.
 For a long press, the application-level decoder's 400 ms duplicate window and
 RMT batching can hide RF activity. Further raw-batch timing experiments are
 needed; do not infer the transmitter sends only once from a single command log.
-
-## Software-only multi-device coverage (2026-10-31)
-
-The new external-component core scans a batch once, extracts each structurally
-valid 41-bit frame, selects a configured device by the 24-bit address, then
-checks that device's explicit `check_xor`. Unknown addresses, invalid checks
-and malformed frames cannot update sequence or state. The legacy `decode_raw`
-API still returns the first frame matching its caller's address/check pair.
-
-Host fixtures use **synthetic**, deliberately independent pairs `0x123456/0xA7`
-and `0x654321/0x39`. These are software routing vectors, not evidence for the
-second physical remote, pairing, or any universal checksum rule (#15 / #20).
-
-Each device retains the prototype's 400 ms exact-frame heuristic, measured from
-the last accepted frame. A different sequence/function is accepted immediately;
-copies do not extend the window. Millisecond counter wrap is tested. A genuine
-press with exactly the same 41 bits inside the window remains ambiguous; held
-buttons and real remote/HA interleaving still require #7 hardware evidence.
-No new light, dimming, timer, direction or sleep behavior is implemented.

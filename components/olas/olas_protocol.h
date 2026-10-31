@@ -40,16 +40,29 @@ struct Frame {
   uint64_t raw{0};
 };
 
-constexpr bool decode_frame(uint64_t raw, uint32_t expected_id, uint8_t check_xor,
-                            Frame &out) {
+// Structural parsing only: an unknown device's check rule is not validated.
+constexpr bool unpack_candidate(uint64_t raw, Frame &out) {
   if (raw > MASK_FRAME || (raw & 1u) != 0u)
     return false;
   const auto id = static_cast<uint32_t>((raw >> 17) & MASK_ID);
   const auto command = static_cast<uint8_t>((raw >> 9) & 0xFFu);
   const auto check = static_cast<uint8_t>((raw >> 1) & 0xFFu);
-  if (id != (expected_id & MASK_ID) || check != checksum(command, check_xor))
-    return false;
   out = {id, command, function_code(command), sequence_number(command), check, raw};
+  return true;
+}
+
+constexpr uint8_t candidate_check_xor(const Frame &frame) {
+  return static_cast<uint8_t>(frame.command ^ frame.check);
+}
+
+constexpr bool decode_frame(uint64_t raw, uint32_t expected_id, uint8_t check_xor,
+                            Frame &out) {
+  Frame candidate;
+  if (!unpack_candidate(raw, candidate) ||
+      candidate.fan_id != (expected_id & MASK_ID) ||
+      candidate.check != checksum(candidate.command, check_xor))
+    return false;
+  out = candidate;
   return true;
 }
 
@@ -73,18 +86,22 @@ constexpr uint8_t function_for_speed(int speed) {
   return speed >= 0 && speed <= 6 ? codes[speed] : 0u;
 }
 
-// Find one structurally valid frame, advancing cursor past it. Address and
-// checksum policy belong to the caller. Each candidate's pulses are parsed once,
-// regardless of the number of configured devices.
-inline bool next_raw_frame(const int32_t *timings, size_t size, size_t &cursor,
-                           uint64_t &out) {
-  if (timings == nullptr || size < 84 || cursor > size - 84)
+// A single raw receiver batch can contain multiple copies of a 41-bit frame.
+// Marks are positive, spaces are negative, in microseconds. This intentionally
+// scans complete structural candidates, without validating any device/check.
+// Start cursor at zero; repeated calls visit every candidate in the batch.
+inline bool next_raw_candidate(const int32_t *timings, size_t size, size_t &cursor,
+                               Frame &out) {
+  constexpr size_t FRAME_PULSES = 84;
+  if (timings == nullptr || size < FRAME_PULSES || cursor > size)
     return false;
-  for (size_t start = cursor; start <= size - 84; ++start) {
+
+  for (size_t start = cursor; start <= size - FRAME_PULSES; ++start) {
     const auto sync_mark = timings[start];
     const auto sync_space = timings[start + 1];
     if (sync_mark < 6500 || sync_mark > 8200 || sync_space < -1450 || sync_space > -750)
       continue;
+
     uint64_t raw = 0;
     bool valid = true;
     for (int bit = 0; bit < BITS_PER_FRAME; ++bit) {
@@ -98,9 +115,8 @@ inline bool next_raw_frame(const int32_t *timings, size_t size, size_t &cursor,
       }
       raw = (raw << 1) | static_cast<uint64_t>(one);
     }
-    if (valid && (raw & 1u) == 0u) {
-      cursor = start + 84;
-      out = raw;
+    if (valid && unpack_candidate(raw, out)) {
+      cursor = start + FRAME_PULSES;
       return true;
     }
   }
@@ -108,16 +124,27 @@ inline bool next_raw_frame(const int32_t *timings, size_t size, size_t &cursor,
   return false;
 }
 
-// Compatibility API: return the first frame matching one device in a batch.
+// Normal control still requires the configured device and check XOR; merely
+// looking like an Olas frame is insufficient. Return the first matching frame.
 inline bool decode_raw(const int32_t *timings, size_t size, uint32_t expected_id,
                        uint8_t check_xor, Frame &out) {
   size_t cursor = 0;
-  uint64_t raw;
-  while (next_raw_frame(timings, size, cursor, raw)) {
-    if (decode_frame(raw, expected_id, check_xor, out))
+  Frame candidate;
+  while (next_raw_candidate(timings, size, cursor, candidate)) {
+    if (decode_frame(candidate.raw, expected_id, check_xor, out))
       return true;
   }
   return false;
+}
+
+ // Compatibility with core's structural iterator; reuse the shared candidate parser.
+inline bool next_raw_frame(const int32_t *timings, size_t size, size_t &cursor,
+                           uint64_t &out) {
+  Frame candidate;
+  if (!next_raw_candidate(timings, size, cursor, candidate))
+    return false;
+  out = candidate.raw;
+  return true;
 }
 
 }  // namespace olas
