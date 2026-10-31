@@ -11,3 +11,10 @@ jobs:
         run: python3 -c "import tomllib; tomllib.load(open('mise.toml', 'rb'))"
       - name: C++17 host tests
         run: ./scripts/test.sh
+  schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v3
+      - name: ESPHome schema and typed references
+        run: mise run test-schema

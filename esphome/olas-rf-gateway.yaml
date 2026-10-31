@@ -10,7 +10,7 @@ substitutions:
 esphome:
   name: olas-rf-gateway
   includes:
-    - include/olas_protocol.h
+    - ../components/olas/olas_protocol.h
 
 esp32:
   variant: esp32s2

@@ -3,11 +3,13 @@
 An ESP32-S2 + CC1101 gateway that sends and receives Philips Olas ceiling-fan
 433/434 MHz RF commands, with a native Home Assistant `fan` entity.
 
-**Status (2026-10-30):** Fan power and six speeds were tested successfully on
+**Status (2026-10-31):** Fan power and six speeds were tested successfully on
 real hardware, from both Home Assistant (TX) and the original remote (RX). The
 pure C++ protocol module and the project-formatted YAML configuration in this
 repository were **reconstructed/refactored** from the working experiment;
-they pass host tests but have **not yet been recompiled/flashed together**.
+they pass host tests and ESPHome 2026.10.1 config/compilation, but their
+**physical regression remains unverified**. A receive-only multi-device external
+component core is available for development; native entity migration is pending.
 Light, temperature, dimming, reversal, sleep and timers are documented or
 captured but **not implemented as entities**.
 
@@ -60,8 +62,20 @@ Windows, but the existing shell-based host test requires a Unix-like toolchain.
 
 Mise pins the ESPHome release and uv version; transitive Python packages and
 the PlatformIO toolchain are not yet represented by a full dependency lock.
-The repository's refactored YAML has **not** yet been compiled or tested on
-the physical device.
+The repository's refactored YAML compiles; it has not been regression-tested on
+the physical device. See [verification](docs/verification.md) for evidence tiers.
+
+For the experimental external-component core, use the synthetic fixture:
+
+```sh
+mise run test-schema
+mise run config-core
+mise run compile-core
+```
+
+This fixture has two synthetic address/check pairs and no secrets. **Never flash
+it**: it exposes no entities and has no RF send path. The existing single-device
+reference remains the migration baseline. See [architecture](docs/architecture.md).
 
 ## Run the reference configuration
 

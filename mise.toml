@@ -6,7 +6,7 @@ uv = "0.12.10"
 "pypi:esphome" = "2026.10.1"
 
 [tasks.test]
-description = "Run the C++17 protocol tests (requires Bash and a C++ compiler)"
+description = "Run the C++17 protocol and multi-device core tests"
 run = "bash scripts/test.sh"
 
 [tasks.config]
@@ -20,3 +20,15 @@ run = "esphome compile esphome/olas-rf-gateway.yaml"
 [tasks.version]
 description = "Display the pinned ESPHome version"
 run = "esphome version"
+
+[tasks.test-schema]
+description = "Test Olas schema and typed ID validation with the pinned ESPHome CLI"
+run = "python tests/test_config.py"
+
+[tasks.config-core]
+description = "Validate the synthetic, receive-only external-component fixture"
+run = "esphome config tests/fixtures/olas-core.yaml"
+
+[tasks.compile-core]
+description = "Compile the synthetic external-component fixture (never flashes)"
+run = "esphome compile tests/fixtures/olas-core.yaml"

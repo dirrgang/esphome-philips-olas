@@ -1,0 +1,43 @@
+# Build/config fixture ONLY. Both address/check pairs are synthetic, not captures.
+# Never flash this fixture. It has no network, entities or transmit actions.
+esphome:
+  name: olas-core-test
+esp32:
+  variant: esp32s2
+  framework:
+    type: esp-idf
+logger:
+external_components:
+  - source:
+      type: local
+      path: ../../components
+    components: [olas]
+spi:
+  clk_pin: GPIO7
+  mosi_pin: GPIO11
+  miso_pin: GPIO9
+cc1101:
+  cs_pin: GPIO12
+  frequency: 434MHz
+  modulation_type: ASK/OOK
+remote_receiver:
+  id: olas_rx
+  pin: GPIO3
+  filter: 50us
+  idle: 10ms
+remote_transmitter:
+  id: olas_tx
+  pin: GPIO5
+  carrier_duty_percent: 100%
+  non_blocking: true
+olas:
+  id: olas_gateway
+  receiver_id: olas_rx
+  transmitter_id: olas_tx
+  devices:
+    - id: olas_a
+      address: 0x123456
+      check_xor: 0xA7
+    - id: olas_b
+      address: 0x654321
+      check_xor: 0x39

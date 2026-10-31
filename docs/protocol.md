@@ -81,3 +81,22 @@ bit `1`, bit `0`, etc. Ignore noise and nonmatching 433 MHz devices.
 For a long press, the application-level decoder's 400 ms duplicate window and
 RMT batching can hide RF activity. Further raw-batch timing experiments are
 needed; do not infer the transmitter sends only once from a single command log.
+
+## Software-only multi-device coverage (2026-10-31)
+
+The new external-component core scans a batch once, extracts each structurally
+valid 41-bit frame, selects a configured device by the 24-bit address, then
+checks that device's explicit `check_xor`. Unknown addresses, invalid checks
+and malformed frames cannot update sequence or state. The legacy `decode_raw`
+API still returns the first frame matching its caller's address/check pair.
+
+Host fixtures use **synthetic**, deliberately independent pairs `0x123456/0xA7`
+and `0x654321/0x39`. These are software routing vectors, not evidence for the
+second physical remote, pairing, or any universal checksum rule (#15 / #20).
+
+Each device retains the prototype's 400 ms exact-frame heuristic, measured from
+the last accepted frame. A different sequence/function is accepted immediately;
+copies do not extend the window. Millisecond counter wrap is tested. A genuine
+press with exactly the same 41 bits inside the window remains ambiguous; held
+buttons and real remote/HA interleaving still require #7 hardware evidence.
+No new light, dimming, timer, direction or sleep behavior is implemented.
