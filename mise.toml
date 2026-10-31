@@ -4,9 +4,12 @@
 python = "3.13"
 uv = "0.12.10"
 "pypi:esphome" = "2026.10.1"
+# Zig supplies a standalone C++ compiler on Windows; Unix uses the system c++.
+zig = { version = "0.15.2", os = ["windows"] }
 
 [tasks.test]
 description = "Run the C++17 protocol tests (requires Bash and a C++ compiler)"
+shell = "bash -c"
 run = "bash scripts/test.sh"
 
 [tasks.config]

@@ -8,22 +8,34 @@ mise run test
 ```
 
 This task invokes `bash scripts/test.sh`. Bash and a C++17 compiler are
-required (use WSL on Windows). CI continues to run the same test script directly.
+required. On native Windows, use Git Bash from Git for Windows; `mise install`
+provides Zig 0.15.2, whose C++ frontend runs the same test suite. On Linux/macOS,
+install GCC/Clang. CI continues to run the same test script directly.
 
 Tests include: bit packing, ID/check validation, seq wrap, six speeds and off,
 RAW decode with unrelated leading pulses, repeated frames and truncated input.
 
-## ESPHome validation/compile (not yet run for the refactored repository)
+## ESPHome validation/compile
 
 Run with the ESPHome 2026.10.1 CLI installed by mise; these commands do not
 flash the device.
 
 ```bash
 cp esphome/secrets.yaml.example esphome/secrets.yaml
-# EDIT THE FILE: replace Wi-Fi, HA API and OTA credentials.
+# EDIT THE FILE: use the existing Wi-Fi, API and fallback AP secrets.
+# Keep the productive OTA settings; this reference uses encrypted OTA.
 mise run config
 mise run compile
 ```
+
+On 2026-10-31, native Windows `mise run test`, ESPHome 2026.10.1
+`mise run config` and `mise run compile` passed using the supplied local
+production secrets. The productive YAML export was compared with the
+reference. A local `mise.local.toml` pins the physical ESP-IDF cache path to
+avoid a Windows desktop-app path mismatch; see `docs/STATUS.md` for details.
+Both `firmware.ota.bin` and `firmware.factory.bin` were generated in
+`esphome/.esphome/build/olas-rf-gateway/build/`. No upload was performed;
+the physical matrix below remains pending.
 
 ## Physical test matrix (must be performed after merging the refactor)
 

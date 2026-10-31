@@ -1,5 +1,9 @@
 # ESPHome and credentials
 **/secrets.yaml
+# Local export of the currently flashed Home Assistant configuration.
+esphome/olas-rf-gateway-legacy.yaml
+# Machine-specific tool cache overrides.
+/mise.local.toml
 **/.esphome/
 **/.pio/
 **/.platformio/

@@ -1,4 +1,4 @@
-# Project state (2026-10-30)
+# Project state (2026-10-31)
 
 This is the **authoritative handoff** for subsequent Codex work. Read this
 before modifying any firmware. Actual ESPHome device configuration may have
@@ -17,19 +17,49 @@ currently flashed YAML before attempting OTA changes.
 - State while off retains last nonzero speed (expected HA fan behaviour).
 - Independent captures identified additional light and timer command codes.
 
-## Reconstructed code needing validation
+## Refactored code awaiting hardware validation
 
 - `esphome/include/olas_protocol.h`: pure C++17 unit-tested codec (new).
 - `esphome/olas-rf-gateway.yaml`: faithful *example* based on prior working
   snippets, now using this header and secrets-based substitutions. The combined
-  refactor has **not been compiled with ESPHome and not yet flashed**.
+  refactor has **not yet been flashed**; see the local validation record below.
 - Do not describe the refactor as deployed, or assume an ESPHome config check
   succeeded just because `scripts/test.sh` passes.
 
+## Local setup and validation (2026-10-31)
+
+- Native Windows toolchain installed with mise: Python 3.13.18, uv 0.12.10,
+  ESPHome 2026.10.1 and Zig 0.15.2 for C++17 host tests, using Git Bash.
+- `mise run version`: ESPHome 2026.10.1 confirmed.
+- `mise run test`: passed (`Olas protocol tests passed`).
+- User supplied the currently productive YAML as the local, gitignored
+  `esphome/olas-rf-gateway-legacy.yaml`, together with `esphome/secrets.yaml`.
+- Compared that export with the refactor. Preserved device/friendly name,
+  existing API secret reference, encrypted OTA, fallback AP credentials,
+  GPIOs/carrier and both RF proxy entities. Added the documented RF ID/check
+  substitutions to the local secrets without replacing existing credentials.
+- `mise run config`: passed with the supplied local secrets. Explicit
+  `non_blocking: true` retains ESPHome 2026.10.1's default TX behavior.
+- Initial native compilation hit a Windows desktop-app cache-path mismatch:
+  IDF saved its installation under the redirected physical path while the tool
+  exporter looked up the logical path, then incorrectly requested the missing
+  RISC-V compiler. A local, gitignored `mise.local.toml` sets
+  `ESPHOME_ESP_IDF_PREFIX` to the existing physical cache. A fresh mise process
+  was checked to confirm the saved override is active.
+- The existing fallback AP has no captive portal or web server, as in the
+  productive export; ESPHome warns that it offers no configuration interface.
+- `mise run compile`: passed with ESPHome 2026.10.1, ESP-IDF 5.5.6 and the
+  supplied local secrets, using that cache override. OTA and factory binaries
+  were generated under `esphome/.esphome/build/olas-rf-gateway/build/`.
+  Reported RAM: 121,396 / 172,032 bytes (70.6%); flash: 819,966 / 1,835,008
+  bytes (44.7%).
+- No firmware was uploaded. Post-refactor hardware smoke tests are pending;
+  successful compilation does not establish physical behavior.
+
 ## Pending / unresolved
 
-1. Run `esphome config`, then `esphome compile`, against ESPHome 2026.10.1.
-2. Compare against the *actual* flashed YAML; keep its Wi-Fi/API/OTA keys.
+1. Host tests, ESPHome config and firmware compilation passed on 2026-10-31.
+2. Local production export compared; confirm it is still current before OTA.
 3. Flash incremental refactor, verify all speed/off RX and TX transitions.
 4. Measure long press of brightness+/−: Does holding emit repeated bursts,
    one long continuous transmission, or another code? Log raw batch counts

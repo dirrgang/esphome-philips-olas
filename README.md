@@ -3,11 +3,12 @@
 An ESP32-S2 + CC1101 gateway that sends and receives Philips Olas ceiling-fan
 433/434 MHz RF commands, with a native Home Assistant `fan` entity.
 
-**Status (2026-10-30):** Fan power and six speeds were tested successfully on
+**Status (2026-10-31):** Fan power and six speeds were tested successfully on
 real hardware, from both Home Assistant (TX) and the original remote (RX). The
 pure C++ protocol module and the project-formatted YAML configuration in this
 repository were **reconstructed/refactored** from the working experiment;
-they pass host tests but have **not yet been recompiled/flashed together**.
+they pass host tests, ESPHome 2026.10.1 configuration validation and native
+Windows firmware compilation. The refactor has **not yet been flashed**.
 Light, temperature, dimming, reversal, sleep and timers are documented or
 captured but **not implemented as entities**.
 
@@ -53,15 +54,28 @@ mise run config
 mise run compile
 ```
 
+The reference uses the production export's secret names
+`olas_rf_gateway__encryption_key` and `olas_rf_gateway__ap_password`, plus
+`wifi_ssid`, `wifi_password`, `olas_fan_id` and `olas_check_xor`. It preserves
+encrypted OTA, the fallback AP and the two native RF proxy entities. A local
+production export named `esphome/olas-rf-gateway-legacy.yaml` is gitignored;
+keep it as the comparison baseline, never as a public capture or credential file.
+
 The `config` and `compile` tasks do **not** flash hardware. The `test`
-task runs `scripts/test.sh`, so it also requires Bash and a C++17 compiler
-(e.g. GCC/Clang). On Windows, use WSL for this workflow; mise itself supports
-Windows, but the existing shell-based host test requires a Unix-like toolchain.
+task runs `scripts/test.sh`, so it also requires Bash and a C++17 compiler.
+On Linux/macOS, install GCC/Clang. On native Windows, install
+[Git for Windows](https://gitforwindows.org/) with Git Bash in its standard
+location; mise selects Git Bash and installs Zig 0.15.2 as the C++ compiler.
+WSL is optional. After installing mise, open a new terminal so `mise` is on
+`PATH`; shell activation is not required for `mise run`.
+Machine-specific tool cache overrides belong in the gitignored
+`mise.local.toml`. This Windows setup uses `ESPHOME_ESP_IDF_PREFIX` there to
+keep ESPHome and ESP-IDF on the same physical cache path under the desktop app.
 
 Mise pins the ESPHome release and uv version; transitive Python packages and
 the PlatformIO toolchain are not yet represented by a full dependency lock.
-The repository's refactored YAML has **not** yet been compiled or tested on
-the physical device.
+The repository's refactored YAML compiles with ESPHome 2026.10.1; validation
+on the physical device is still pending.
 
 ## Run the reference configuration
 
