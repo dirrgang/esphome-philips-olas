@@ -1,0 +1,37 @@
+name: ESPHome firmware validation
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/esphome.yml
+      - mise.toml
+      - esphome/**
+      - scripts/ci_config_smoke.py
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/esphome.yml
+      - mise.toml
+      - esphome/**
+      - scripts/ci_config_smoke.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned mise tools
+        uses: jdx/mise-action@v5
+      - name: Check ESPHome toolchain
+        run: mise run version
+      - name: Validate public synthetic gateway fixture
+        run: mise run config
+      - name: Reject a deliberately broken include
+        run: mise run smoke-config
+      - name: Compile ESP32-S2 synthetic firmware (no upload)
+        run: mise run compile
