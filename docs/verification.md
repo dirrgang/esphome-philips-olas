@@ -122,7 +122,9 @@ They never contact hardware. Never flash the synthetic build fixture.
 
 This is a reusable test procedure, not an execution tracker. Record firmware
 revision, sanitized observations and acceptance progress in the relevant issue
-or PR. [Issue #3](https://github.com/dirrgang/esphome-philips-olas/issues/3)
+or PR. Use neutral device labels in public reports; omit installation locations,
+private profile names, personal identifiers and private network addresses.
+[Issue #3](https://github.com/dirrgang/esphome-philips-olas/issues/3)
 contains baseline regression evidence; a smoke test does not establish every
 edge case. Keep actual identifiers and captures in the ignored workspace.
 
@@ -160,11 +162,12 @@ logs**, and **independent physical response** separately in the PR / issues
 | Restart ESP with lamp/fan running; remote use while gateway offline | Light OFF is a UI assumption, preset unknown; stale fan state documented | No Olas startup/restore TX | No physical change caused by restart; deliberate next command recovers estimate |
 | Native fan → proxy LIGHT ON → native light OFF, with completion/RX recovery between clients | Receive a fresh remote press before returning to native sequence tracking | Same transmitter, TX/RX hooks recover; no concurrent clients | Record every transition independently; stop on RX loss |
 
-Previous generic proxy LIGHT ON and subsequent original-remote LIGHT OFF have
-physical evidence in #8/#24. That proves neither native entity TX nor proxy
-LIGHT OFF TX. Other light codes have RX evidence only. All rows above require
-new verification for this firmware. Overlapping-client, failure and retuning
-stress tests remain #24 work; this change does not complete arbitration.
+Generic proxy LIGHT ON and subsequent original-remote LIGHT OFF have physical
+evidence in #8/#24. Native light ON/OFF, all three white presets and remote/HA
+synchronization were subsequently confirmed by the user for PR #31 on one
+controller; see #8/PR #31 for execution evidence. This does not establish proxy
+LIGHT OFF TX or completion of the remaining regression rows. Overlapping-client,
+failure and retuning stress tests remain #24 work.
 
 ## Targeted dimming experiment
 
