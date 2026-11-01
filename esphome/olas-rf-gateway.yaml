@@ -157,6 +157,7 @@ remote_receiver:
 
           // Guard synchronous event/state callbacks against RF echo.
           olas::RfUpdateGuard guard(id(olas_rf_update));
+          olas::publish_action_power(frame.function, *id(olas_fan), id(olas_rf_update));
           if (const char *type = olas::action_event_type(frame.function, true)) {
             id(olas_action).trigger(type);
             return;  // Never press a button or infer a mode state from RX.
@@ -195,6 +196,7 @@ script:
             return;
           ESP_LOGI("olas", "TX requested function=0x%02X seq=%u",
                    unsigned(function), unsigned(seq));
+          olas::publish_action_power(function, *id(olas_fan), id(olas_rf_update));
           if (const char *type = olas::action_event_type(function, false))
             id(olas_action).trigger(type);
           const int preset = olas::white_preset(function);

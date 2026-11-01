@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <vector>
 
@@ -31,6 +32,18 @@ struct FakeTransmitter {
     }
   };
   Call transmit() { timings.clear(); return {*this}; }
+};
+
+struct FakeFan {
+  bool state{false};
+  int speed{0};
+  unsigned publications{0};
+  std::function<void()> on_publish;
+  void publish_state() {
+    ++publications;
+    if (on_publish)
+      on_publish();
+  }
 };
 
 static std::vector<int32_t> wave(uint64_t raw) {
@@ -70,6 +83,68 @@ int main() {
         assert(shared.frames[command * 4 + copy] == wave(expected[command]));
   }
 
+  // Publishing sleep power triggers the same kind of synchronous callback as
+  // ESPHome fan.on_state. Neither TX nor RX may echo a speed command.
+  for (int retained_speed = 0; retained_speed <= 6; ++retained_speed) {
+    FakeTransmitter shared;
+    uint8_t seq = 1;
+    bool rf_update = false;
+    FakeFan fan;
+    fan.speed = retained_speed;
+    fan.on_publish = [&]() {
+      assert(rf_update);
+      const int speed = fan.state ? (fan.speed == 0 ? 1 : fan.speed) : 0;
+      assert(!olas::send_command(shared, ID, CHECK_XOR, seq,
+                                olas::function_for_speed(speed), true, true, rf_update));
+    };
+    assert(olas::send_command(shared, ID, CHECK_XOR, seq, olas::SLEEP, true, true, false));
+    olas::publish_action_power(olas::SLEEP, fan, rf_update);
+    assert(fan.state && fan.speed == retained_speed && fan.publications == 1);
+    assert(shared.calls == 1 && shared.frames.size() == 4 && seq == 0 && !rf_update);
+
+    for (uint8_t remote_seq = 0; remote_seq < 4; ++remote_seq) {
+      fan.state = false;
+      olas::Frame frame;
+      const auto raw = olas::encode_frame(ID, olas::make_command(olas::SLEEP, remote_seq), CHECK_XOR);
+      assert(olas::decode_frame(raw, ID, CHECK_XOR, frame));
+      seq = olas::next_sequence(frame.sequence);
+      const auto before = fan.publications;
+      {
+        olas::RfUpdateGuard outer(rf_update);
+        olas::publish_action_power(frame.function, fan, rf_update);
+        assert(rf_update);  // Nested guard must retain the caller's RX protection.
+      }
+      assert(fan.state && fan.speed == retained_speed && fan.publications == before + 1);
+      assert(shared.calls == 1 && seq == olas::next_sequence(remote_seq) && !rf_update);
+    }
+
+    for (uint8_t function : {uint8_t(0x50), uint8_t(0x1C), uint8_t(0x18), uint8_t(0x14),
+                             uint8_t(0x10), uint8_t(0x40), uint8_t(0x7C), uint8_t(0x00)}) {
+      fan.state = false;
+      const auto before = fan.publications;
+      olas::publish_action_power(function, fan, rf_update);
+      assert(!fan.state && fan.speed == retained_speed && fan.publications == before);
+    }
+    for (int blocked = 0; blocked < 3; ++blocked) {
+      fan.state = false;
+      const auto before = fan.publications;
+      const auto seq_before = seq;
+      if (olas::send_command(shared, ID, CHECK_XOR, seq, olas::SLEEP,
+                             blocked != 0, blocked != 1, blocked == 2))
+        olas::publish_action_power(olas::SLEEP, fan, rf_update);
+      assert(!fan.state && fan.publications == before && shared.calls == 1 && seq == seq_before);
+    }
+    fan.state = false;
+    const auto before = fan.publications;
+    olas::Frame frame;
+    const auto raw = olas::encode_frame(ID, olas::SLEEP, CHECK_XOR);
+    for (const auto bad : {raw ^ 2u, raw | 1u})
+      if (olas::decode_frame(bad, ID, CHECK_XOR, frame))
+        olas::publish_action_power(frame.function, fan, rf_update);
+    if (olas::decode_frame(raw, ID + 1, CHECK_XOR, frame))
+      olas::publish_action_power(frame.function, fan, rf_update);
+    assert(!fan.state && fan.publications == before && shared.calls == 1);
+  }
   // Fan, light and stateless actions all use the same waveform and counter.
   FakeTransmitter tx;
   uint8_t sequence = 1;
@@ -158,7 +233,7 @@ int main() {
     assert(olas::is_stateless_action(stateless[i]));
     assert(std::strcmp(olas::action_event_type(stateless[i], false), requested[i]) == 0);
     assert(std::strcmp(olas::action_event_type(stateless[i], true), received[i]) == 0);
-    // RX mapping cannot claim fan power/speed, light power or a white preset.
+    // No fixed speed/light mapping; the sleep-only power side effect is tested above.
     assert(olas::speed_for_function(stateless[i]) == -1);
     assert(olas::white_preset(stateless[i]) == -1);
     assert(stateless[i] != olas::LIGHT_ON && stateless[i] != olas::LIGHT_OFF);

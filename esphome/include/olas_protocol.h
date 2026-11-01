@@ -183,6 +183,17 @@ class RfUpdateGuard {
   bool previous_;
 };
 
+// Sleep is observed to start a stopped fan. Publish commanded/overheard power
+// without inventing a speed, active-mode state or a second RF command.
+template<typename Fan>
+void publish_action_power(uint8_t function, Fan &fan, bool &rf_update) {
+  if (function != SLEEP)
+    return;
+  RfUpdateGuard guard(rf_update);
+  fan.state = true;
+  fan.publish_state();
+}
+
 // Duck-typed ESPHome TransmitCall API, also exercised by a host fake. No radio
 // ownership, queue or framework dependency. True means submitted, NOT delivered.
 template<typename Transmitter>
