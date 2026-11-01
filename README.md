@@ -91,8 +91,9 @@ mise run rf-diagnose -- <gateway-ip> --fan-id <id-hex> --check-xor <xor-hex>
 
 To test a **single LIGHT ON transmit** on an already configured gateway,
 append `--tx-light-on --post-rx`; a fresh original-remote LIGHT OFF and an
-explicit interactive `SEND` confirmation are required. No CI or agent may
-transmit. See [verification](docs/verification.md) and
+explicit interactive `SEND` confirmation are required. Never transmit from CI
+or unattended agent runs; interactive hardware work requires explicit user
+authorization. See [verification](docs/verification.md) and
 [PoC #23](https://github.com/dirrgang/esphome-philips-olas/issues/23).
 The API is experimental; these tests do not establish a stock HA receive feed
 or mixed-client TX arbitration.
@@ -187,7 +188,12 @@ and RF proxies are excluded. Light controls inherit `olas_fan_internal`; optiona
 `olas_light_internal` can hide them separately. With control enabled, fan, light
 and RF proxies remain available alongside learning. Use one RF client at a time
 until [#24](https://github.com/dirrgang/esphome-philips-olas/issues/24) stress and
-failure tests are complete; the shared helper adds no custom queue. Other fans
+failure tests are complete; the shared helper adds no custom queue. Two separate
+proxy connections can displace each other's completion replies even when each
+client waits for its own reply. Use one coordinated proxy owner and do not
+automatically retry negative replies from overlapping clients; see
+[the transport limits](docs/architecture.md#shared-transmitter-limits-esphome-2026101).
+Other fans
 need their own capture and compatibility test; no universal check constant is assumed.
 
 ## Documentation
