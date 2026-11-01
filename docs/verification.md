@@ -14,6 +14,9 @@ install GCC/Clang. CI continues to run the same test script directly.
 
 Tests include: bit packing, ID/check validation, seq wrap, six speeds and off,
 RAW decode with unrelated leading pulses, repeated frames and truncated input.
+Synthetic A → B → A sends also verify separate caller-owned counters across
+wraparound with distinct IDs/checks and fixed waveform vectors. This does not
+add multi-device support to the YAML or test RMT serialization.
 The shared sender is exercised through a fake TransmitCall: all five light
 commands, direction/sleep/three timer actions and six speeds/off,
 independent MSB-first pulse/check expectations,
@@ -181,7 +184,8 @@ edge case. Keep actual identifiers and captures in the ignored workspace.
 Use a reviewed private profile, preserve the working firmware/configuration for
 rollback, and compare with the installed configuration before an authorized
 flash. Use 3.3 V and a suitable 433 MHz antenna. These are manual procedures;
-CI/Codex must not flash or send RF. Record **RX logs**, **TX request/completion
+CI and unattended agent runs must not flash or send RF; interactive tool-assisted
+hardware work requires explicit user authorization. Record **RX logs**, **TX request/completion
 logs**, and **independent physical response** separately in the PR / issues
 [#5](https://github.com/dirrgang/esphome-philips-olas/issues/5),
 [#8](https://github.com/dirrgang/esphome-philips-olas/issues/8),
@@ -204,6 +208,51 @@ synchronization were subsequently confirmed by the user for PR #31 on one
 controller; see #8/PR #31 for execution evidence. This does not establish proxy
 LIGHT OFF TX or completion of the remaining regression rows. Overlapping-client,
 failure and retuning stress tests remain #24 work.
+
+## Mixed-client stress procedure — #24
+
+Use the installed private configuration and retain a known-good OTA image before
+any authorized firmware change. Explicitly authorized interactive hardware work
+may use Codex tools. Keep bounded probes and captures in `esphome/local/`.
+No synthetic fixture may be flashed. Request physical observations separately;
+API state and completion are not device acknowledgements.
+
+| Scenario | Submission and evidence | Stop condition |
+|---|---|---|
+| Paced native → proxy → native | Native speed 1, proxy LIGHT ON (four copies), native OFF; wait for each finish and fresh remote LIGHT OFF RX before proceeding | Missing RX, failure log, or unexpected physical effect |
+| Short gaps | After paced pass, repeat at 250 ms, 50 ms and zero submission gap; record native request, proxy completion, TX/RX hooks and post-burst remote RX separately | Missing/extra hook, RMT error or RX loss |
+| Independent clients | Two API connections, bounded alternating requests to the same transmitter; distinguish submission order from RF completion | Unmatched replies, persistent failure or RX loss |
+| Proxy A → proxy B | Two independently paced connections to the same proxy entity; paired LIGHT ON requests at 50 ms, no added wait and 250 ms, settling between pairs, then a single-client LIGHT ON and fresh remote LIGHT OFF RX | Any displaced/negative completion prevents declaring overlapping proxy use reliable |
+| Disconnect | Disconnect the proxy client after submission; observe the remaining waveform/completion and fresh remote RX using another connection | Do not label disconnect as cancellation |
+| Invalid input | Empty timings/unknown entity first; separately inject driver/radio failures only in a recoverable test fixture | A refusal does not establish CC1101 hardware-failure recovery |
+| Frequency | Review fixed 434 MHz/OOK metadata against source; use host vectors for mismatches | Do not radiate an out-of-band-labelled request on the fixed Olas channel |
+| Devices A → B → A | Synthetic IDs/checks and independently wrapped counters first; retain separate per-device next-sequences | One physical fan cannot validate a second real device |
+
+Run short-gap tests only after the paced physical sequence succeeds. If a native
+command is logged but has no observed effect, reproduce it in isolation before
+attributing the failure to contention. Record firmware compilation time/revision,
+requested function/sequence, completion status, independent RX and physical
+observations in #24. A post-test OFF request is cleanup, not proof the fan stopped.
+See [the source-level limits](architecture.md#shared-transmitter-limits-esphome-2026101)
+for unbounded RMT waits, radio transition failures and single-slot proxy replies.
+
+For a native startup anomaly, first confirm physical standstill using remote OFF.
+Send native speed 1 in isolation, observe for 25 seconds, then send native OFF.
+Record function/sequence and actual startup/stop separately from the estimated
+API state. Compare with remote speed 1/OFF under the same physical conditions,
+then repeat the native trial after standstill. Do not insert proxy sends, change
+the codec, or attribute a single missed start to sequence collision without
+reproducing it. Keep the receive-only comparison capture bounded and distinguish
+any later native commands that happen to fall inside that capture window.
+
+For proxy/proxy tests, record each connection's reply independently. The stock
+Python client paces each connection separately, so one outstanding request per
+connection still permits overlapping requests to the shared proxy entity. Use
+only known fixed-frequency LIGHT ON frames with four copies and explicit shared
+sequence tracking; the three pairs plus final single-client request total seven
+requests. A final physical ON/OFF check and fresh remote RX do not prove that
+each of the seven frames was emitted. Do not automatically retry a displaced
+negative reply or treat a fixed 250 ms delay as a completion guarantee.
 
 ## Manual stateless action tests
 

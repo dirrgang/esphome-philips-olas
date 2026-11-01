@@ -50,6 +50,26 @@ static std::vector<int32_t> wave(uint64_t raw) {
 }
 
 int main() {
+  // #24: synthetic A -> B -> A through one sender, independent device counters.
+  // This checks portable caller-owned sequence isolation, not RMT arbitration
+  // or a multi-device firmware feature (the YAML still configures one fan).
+  {
+    FakeTransmitter shared;
+    uint8_t seq_a = 0, seq_b = 3;
+    assert(olas::send_command(shared, ID, CHECK_XOR, seq_a, 0x40, true, true, false));
+    assert(seq_a == 3 && seq_b == 3);
+    assert(olas::send_command(shared, 0x123456, 0x5B, seq_b, 0x7C, true, true, false));
+    assert(seq_a == 3 && seq_b == 2);
+    assert(olas::send_command(shared, ID, CHECK_XOR, seq_a, 0x10, true, true, false));
+    assert(seq_a == 2 && seq_b == 2);
+    // Fixed vectors include different IDs, checks, and A's 0 -> 3 wrap.
+    const uint64_t expected[] = {0xCA864281CE, 0x2468ACFE48, 0xCA86422768};
+    assert(shared.calls == 3 && shared.frames.size() == 12);
+    for (size_t command = 0; command < 3; ++command)
+      for (size_t copy = 0; copy < 4; ++copy)
+        assert(shared.frames[command * 4 + copy] == wave(expected[command]));
+  }
+
   // Fan, light and stateless actions all use the same waveform and counter.
   FakeTransmitter tx;
   uint8_t sequence = 1;

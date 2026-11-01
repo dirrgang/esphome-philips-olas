@@ -85,6 +85,72 @@ fresh original-remote command before resuming native control. This is an
 incremental extension of the working gateway, not a decision on
 [#27](https://github.com/dirrgang/esphome-philips-olas/issues/27) or PR #21.
 
+## Shared-transmitter limits (ESPHome 2026.10.1)
+
+The native API dispatches RF requests synchronously through
+[`APIConnection::on_infrared_rf_transmit_raw_timings_request`](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/api/api_connection.cpp)
+to `RadioFrequencyCall::perform()`, `RfProxy::control()` and
+[`IrRfEntity::transmit_raw_()`](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/ir_rf_base/ir_rf_base.cpp).
+That path and `olas::send_command()` both use the same `olas_tx` TransmitCall.
+On ESP32/IDF >=5.5.1, `RemoteTransmitterBase::send_()` flushes the previous
+completion before assigning the new transport sequence and entering
+`send_internal()`. The RMT implementation waits for all previous symbols before
+clearing/reusing its encoded buffer. Its driver queue depth is one. This
+serializes consecutive normal main-loop submissions, including submissions from
+different API connections; it provides neither an application FIFO nor a mutex
+for arbitrary tasks/ISRs. Separate connections are serviced independently:
+host submission timestamps do not establish a global RF send order. Encoding
+uses shared mutable storage: never retain a
+TransmitCall across asynchronous work or send reentrantly from a TX/completion
+hook. A custom Olas-only queue would not arbitrate the generic proxy path.
+
+Failure and completion meanings differ:
+
+- [`fire_complete_(sent)`](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/remote_transmitter/remote_transmitter.h)
+  notifies the proxy API before invoking the YAML `on_complete` hook. The hook
+  runs on failure too and receives no success argument. It requests CC1101 RX;
+  it proves neither successful transmission nor successful RX entry.
+- The RMT backend reports `sent=false` for a failed component, failed carrier
+  configuration, empty encoded data, failed `rmt_transmit`, or failed wait.
+  A wait uses an unbounded driver timeout (`-1`); a hung driver can stall the
+  main loop, so the proxy reply deadline is not a radio recovery watchdog.
+- [`CC1101Component::begin_tx()` and `begin_rx()`](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/cc1101/cc1101.cpp)
+  attempt IDLE followed by calibrated TX/RX. They return `void` and log a failed
+  transition. RMT can therefore report success even if the radio never entered
+  TX, and the completion hook can leave RX unrecovered after a radio failure.
+  A fresh independently received remote command is needed to demonstrate RX.
+- The proxy has one pending API reply slot per entity. A request from another
+  connection can displace the previous request's reply with failure even though
+  its waveform is already being transmitted or its completion is still pending.
+  This can happen when each connection individually waits for its own replies:
+  aioesphomeapi's transmit pacing is per connection, not shared across clients.
+  Client disconnect clears the reply slot; it
+  does not cancel an in-flight RMT transmission. Pace each proxy client by its
+  completion and coordinate ownership across all clients. Do not interpret a
+  negative reply as proof of no RF emission or automatically retry it.
+
+The proxy advertises fixed 434 MHz/OOK. In
+[`RfProxy::control()`](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/ir_rf_proxy/ir_rf_proxy.cpp)
+the requested RF frequency/modulation do not configure the CC1101, and the
+[`RadioFrequencyCall`](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/radio_frequency/radio_frequency.h)
+does not enforce its advertised traits before calling `control()`. With this
+gateway's hooks an out-of-band request can therefore radiate at **434 MHz**;
+it cannot be used to prove retuning. Restrict clients to the advertised fixed
+frequency/OOK. Do not add retuning to `on_control`: that callback runs before
+the transmitter flushes the previous send and could retune an active waveform.
+
+Recommendation: retain upstream waveform serialization for bounded normal-loop
+tests, with a single coordinated owner for proxy submissions. Overlapping
+independent clients to the same proxy entity are blocked by unreliable completion
+ownership; execution evidence is in
+[#24](https://github.com/dirrgang/esphome-philips-olas/issues/24).
+An elapsed delay alone is not a completion guarantee. Keep production mixed-client
+use gated on #24. A fix must either preserve the previous reply until its own
+completion and serialize new admission, or refuse the new request before it
+transmits while retaining the previous reply. Merely queuing native Olas sends
+cannot fix the proxy's reply ownership. There is no guarantee of radio recovery
+on every hardware/driver failure.
+
 ## Known modelling traps
 
 - **No ACK:** publishing a command is not proof of actuation.
