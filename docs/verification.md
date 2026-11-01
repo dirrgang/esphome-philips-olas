@@ -2,53 +2,29 @@
 
 ## Host tests
 
+Install the pinned toolchain and run the host suite:
+
 ```bash
 mise install
 mise run test
+mise run test-profiles
 ```
 
-This task invokes `bash scripts/test.sh`. Bash and a C++17 compiler are
-required. On native Windows, use Git Bash from Git for Windows; `mise install`
-provides Zig 0.15.2, whose C++ frontend runs the same test suite. On Linux/macOS,
-install GCC/Clang. CI continues to run the same test script directly.
-
-Tests include: bit packing, ID/check validation, seq wrap, six speeds and off,
-RAW decode with unrelated leading pulses, repeated frames and truncated input.
-Synthetic A → B → A sends also verify separate caller-owned counters across
-wraparound with distinct IDs/checks and fixed waveform vectors. This does not
-add multi-device support to the YAML or test RMT serialization.
-The shared sender is exercised through a fake TransmitCall: all five light
-commands, direction/sleep/three timer actions and six speeds/off,
-independent MSB-first pulse/check expectations,
-four identical copies, one shared descending sequence including wraparound,
-invalid IDs/checks, startup/control-disabled gates and guarded RX callbacks
-that cannot submit TX. Sleep power-publication tests cover local TX and validated
-RX, retained speed 0 through 6, nested synchronous fan callbacks, rejected sends,
-invalid ID/check frames and non-sleep actions. Sleep must publish ON with exactly
-one local RF request or zero RX-triggered sends and no extra sequence decrement.
-This does not execute ESPHome on hardware.
-Action-event tests cover all ten requested/received type mappings, exclusion of
-fan/light/unknown codes, callback guarding and hidden event configuration in both
-synthetic private profiles. Actual HA event display still needs integration testing.
-Discovery tests also cover unknown IDs/non-default checks, multiple devices in
-one batch, malformed pulses, invalid tail bits and normal RX filtering.
+The first test task invokes `bash scripts/test.sh`, using C++17 and mocked
+Python tests. On Linux/macOS use GCC/Clang; on Windows use Git Bash and pinned
+Zig. The **tests themselves** are authoritative for exact assertions. They
+exercise frame packing, check/sequence wrap, synthetic sender/RX scenarios,
+guarded fan/light/action callbacks, event types and A → B → A address
+isolation. `test-profiles` verifies isolated synthetic profiles and tooling.
+No host test establishes on-air transmission, real HA event presentation or
+deployed multi-device control. Record failures in the relevant issue/PR.
 
 ## Integrated passive discovery
 
-Learning is part of the shared `esphome/olas-rf-gateway.yaml` package. Create
-a private profile with `mise run init-local -- --profile site-a`. It creates
-`gateway.yaml`, `secrets.yaml` and `targets.toml` under ignored
-`esphome/local/site-a/`, preserving existing files. The profile resolves all
-secrets itself, then passes values to the shared package; a root secrets file
-must never select another installation's credentials.
-
-Fill the profile's names, RF parameters, credentials and targets, then run
-`mise run config-local -- --profile site-a` and `compile-local` with the same
-selection. `install-local -- --profile site-a --target ota` builds and uploads
-over the configured IP/host; `--target usb` selects that profile's serial port.
-Use `logs-local` with the same profile/target for diagnostics. Defaults may be
-set through `OLAS_PROFILE` and `OLAS_TARGET` in ignored `mise.local.toml`.
-Store private exports and raw captures inside the selected profile.
+Prepare the intended private installation with the
+[README setup procedure](../README.md#private-hardware-workspace). The
+steps here verify **passive RF learning**, not general installation.
+Keep captures and credentials in ignored `esphome/local/`.
 
 For an unknown target, use `olas_control_enabled: "false"` and
 `olas_fan_internal: "true"`. Normal RX-state updates and fan TX are then
@@ -93,14 +69,11 @@ sequence baseline, an explicit terminal `SEND`, then asks for physical
 verification and optional independent post-TX remote LIGHT OFF RX.
 The API request itself does not acknowledge over-air delivery.
 
-**Observed on deployed ESPHome 2026.10.1 firmware, 2026-10-31 (#23):**
-an independent API client decoded four valid Olas frames per physical remote
-press from 385-timing batches, sent LIGHT ON via the proxy and the user
-**physically confirmed the light switched on**. The original remote subsequently
-switched it off and a post-TX raw RX event decoded correctly. This establishes
-basic proxy RX/TX feasibility, **not** reliable concurrent client arbitration,
-native HA receiver support, multiple real device addresses, or physical testing
-of the repository's refactored YAML. See #24 and #27.
+Execution evidence belongs to
+[issue #23](https://github.com/dirrgang/esphome-philips-olas/issues/23).
+The limits of independent RF-proxy clients are specified in
+[architecture](architecture.md#shared-transmitter-limits-esphome-2026101);
+a submitted command or proxy API response is not an on-air acknowledgement.
 
 ### Native Windows console compatibility
 
@@ -110,7 +83,7 @@ by Windows ProactorEventLoop, and the Windows selector loop cannot watch console
 handles). The prompt remains bounded and rejects a noninteractive stdin;
 there is no background input thread left running after timeout. The same
 script uses `add_reader()` in POSIX terminals. Host tests run on Linux and
-native Windows; physical RF TX was verified by the user on Linux only.
+native Windows; cross-platform host tests do not prove live RF behavior.
 
 ## ESPHome validation/compile
 
@@ -153,13 +126,10 @@ reason. It never opens the API, sends RF, flashes hardware, or touches private
 `esphome/local/` profiles. A successful build proves configuration and
 compilation, **not** ESP32/CC1101/HA runtime behavior.
 
-Only the mise tool cache is provided by the action initially; full
-PlatformIO/build caching is deferred until CI runtime is measured. The
-mise/ESPHome versions are pinned in `mise.toml`, but the Python transitive
-dependencies and PlatformIO toolchain are **not yet fully lockfile-pinned**.
-Full physical fan/light/remote smoke testing remains a separate, manual
-[#3](https://github.com/dirrgang/esphome-philips-olas/issues/3) procedure;
-RF-proxy transmit arbitration remains [#24](https://github.com/dirrgang/esphome-philips-olas/issues/24).
+The tool versions in `mise.toml` do not lock every transitive Python
+and PlatformIO dependency. CI validates source, configuration and compilation;
+it is **not** device-level acceptance. Use the physical matrices below for that
+purpose and record outcomes in the relevant issue/PR.
 
 ## Physical regression matrix
 
@@ -206,12 +176,11 @@ logs**, and **independent physical response** separately in the PR / issues
 | Restart ESP with lamp/fan running; remote use while gateway offline | Light OFF is a UI assumption, preset unknown; stale fan state documented | No Olas startup/restore TX | No physical change caused by restart; deliberate next command recovers estimate |
 | Native fan → proxy LIGHT ON → native light OFF, with completion/RX recovery between clients | Receive a fresh remote press before returning to native sequence tracking | Same transmitter, TX/RX hooks recover; no concurrent clients | Record every transition independently; stop on RX loss |
 
-Generic proxy LIGHT ON and subsequent original-remote LIGHT OFF have physical
-evidence in #8/#24. Native light ON/OFF, all three white presets and remote/HA
-synchronization were subsequently confirmed by the user for PR #31 on one
-controller; see #8/PR #31 for execution evidence. This does not establish proxy
-LIGHT OFF TX or completion of the remaining regression rows. Overlapping-client,
-failure and retuning stress tests remain #24 work.
+This is a **reusable test matrix**, not a record of completed checks.
+Store executed evidence in [#8](https://github.com/dirrgang/esphome-philips-olas/issues/8),
+[#24](https://github.com/dirrgang/esphome-philips-olas/issues/24)
+or the applicable PR. A baseline hardware pass does not mean every matrix
+row or collision condition has been verified.
 
 ## Mixed-client stress procedure — #24
 
@@ -283,20 +252,29 @@ original remote: expect `RX function=0x30`, fan ON and `sleep_received`, with no
 TX request. The retained speed field must not change, including after a cold
 boot with no known speed. Record API logs separately from physical behaviour.
 
-Direction reversal and remote synchronization have user-confirmed evidence in
-#11/PR #32 for one test controller. Sleep startup from OFF is user-confirmed via
-HA and remote in #12; varying speed is a user description, not a measured pattern.
-Timer effects/expiry, sleep repeat/exit semantics, new event display, full
-direction operating-condition checks and remaining regressions still need
-the tests above. Do not infer a full timer timeout test from an immediate
-response. Sleep and timer expiry may leave HA's previous fan estimate stale.
-Mixed-client arbitration remains separate #24 work.
+Record dated outcomes and remaining questions in
+[#11](https://github.com/dirrgang/esphome-philips-olas/issues/11),
+[#12](https://github.com/dirrgang/esphome-philips-olas/issues/12) and
+[#13](https://github.com/dirrgang/esphome-philips-olas/issues/13).
+Do not infer complete timer expiry from immediate behavior. The actual
+HA state/event model belongs to
+[architecture](architecture.md#state-estimates-and-home-assistant-actions).
 
-## Targeted dimming experiment
+## Targeted held-button RF experiment
 
-Capture timestamp and raw event count for (1) short `brightness+`, (2) hold
-`brightness+` ~3 seconds, (3) hold `brightness−` ~3 seconds. Capture within a
-limited controlled window to avoid collecting unrelated RF identifiers.
+Compare short and ~3-second held brightness+ and brightness− presses.
+If the original remote supports held WW/DW white-temperature adjustment,
+test it separately; do not assume identical RF behavior. Capture bounded raw
+timings rather than application-level deduplicated commands, keeping any
+unrelated radio traffic private.
+
+Record timestamps, complete and partial frames, repeated bursts, sequence
+bits and release behavior. ESPHome `on_raw` reports positive intervals as
+carrier ON and negative intervals as OFF. A simplified
+`7346,-1093,709,-340,337,-736,...` means sync, bit `1`, bit `0` under the
+[documented bit timing](protocol.md#physical-coding).
+The current first-frame-per-RMT-batch processing and 400 ms duplicate window
+may hide held RF activity. Only repeatable raw captures can establish a rule.
 
 ## Handling a validation failure
 
