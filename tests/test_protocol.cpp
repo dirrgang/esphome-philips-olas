@@ -2,6 +2,8 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstring>
+#include <functional>
 #include <iostream>
 #include <vector>
 
@@ -32,6 +34,18 @@ struct FakeTransmitter {
   Call transmit() { timings.clear(); return {*this}; }
 };
 
+struct FakeFan {
+  bool state{false};
+  int speed{0};
+  unsigned publications{0};
+  std::function<void()> on_publish;
+  void publish_state() {
+    ++publications;
+    if (on_publish)
+      on_publish();
+  }
+};
+
 static std::vector<int32_t> wave(uint64_t raw) {
   std::vector<int32_t> v;
   v.push_back(7400);
@@ -49,11 +63,74 @@ static std::vector<int32_t> wave(uint64_t raw) {
 }
 
 int main() {
-  // Every light opcode and every fan speed uses the same waveform and counter.
+  // Publishing sleep power triggers the same kind of synchronous callback as
+  // ESPHome fan.on_state. Neither TX nor RX may echo a speed command.
+  for (int retained_speed = 0; retained_speed <= 6; ++retained_speed) {
+    FakeTransmitter shared;
+    uint8_t seq = 1;
+    bool rf_update = false;
+    FakeFan fan;
+    fan.speed = retained_speed;
+    fan.on_publish = [&]() {
+      assert(rf_update);
+      const int speed = fan.state ? (fan.speed == 0 ? 1 : fan.speed) : 0;
+      assert(!olas::send_command(shared, ID, CHECK_XOR, seq,
+                                olas::function_for_speed(speed), true, true, rf_update));
+    };
+    assert(olas::send_command(shared, ID, CHECK_XOR, seq, olas::SLEEP, true, true, false));
+    olas::publish_action_power(olas::SLEEP, fan, rf_update);
+    assert(fan.state && fan.speed == retained_speed && fan.publications == 1);
+    assert(shared.calls == 1 && shared.frames.size() == 4 && seq == 0 && !rf_update);
+
+    for (uint8_t remote_seq = 0; remote_seq < 4; ++remote_seq) {
+      fan.state = false;
+      olas::Frame frame;
+      const auto raw = olas::encode_frame(ID, olas::make_command(olas::SLEEP, remote_seq), CHECK_XOR);
+      assert(olas::decode_frame(raw, ID, CHECK_XOR, frame));
+      seq = olas::next_sequence(frame.sequence);
+      const auto before = fan.publications;
+      {
+        olas::RfUpdateGuard outer(rf_update);
+        olas::publish_action_power(frame.function, fan, rf_update);
+        assert(rf_update);  // Nested guard must retain the caller's RX protection.
+      }
+      assert(fan.state && fan.speed == retained_speed && fan.publications == before + 1);
+      assert(shared.calls == 1 && seq == olas::next_sequence(remote_seq) && !rf_update);
+    }
+
+    for (uint8_t function : {uint8_t(0x50), uint8_t(0x1C), uint8_t(0x18), uint8_t(0x14),
+                             uint8_t(0x10), uint8_t(0x40), uint8_t(0x7C), uint8_t(0x00)}) {
+      fan.state = false;
+      const auto before = fan.publications;
+      olas::publish_action_power(function, fan, rf_update);
+      assert(!fan.state && fan.speed == retained_speed && fan.publications == before);
+    }
+    for (int blocked = 0; blocked < 3; ++blocked) {
+      fan.state = false;
+      const auto before = fan.publications;
+      const auto seq_before = seq;
+      if (olas::send_command(shared, ID, CHECK_XOR, seq, olas::SLEEP,
+                             blocked != 0, blocked != 1, blocked == 2))
+        olas::publish_action_power(olas::SLEEP, fan, rf_update);
+      assert(!fan.state && fan.publications == before && shared.calls == 1 && seq == seq_before);
+    }
+    fan.state = false;
+    const auto before = fan.publications;
+    olas::Frame frame;
+    const auto raw = olas::encode_frame(ID, olas::SLEEP, CHECK_XOR);
+    for (const auto bad : {raw ^ 2u, raw | 1u})
+      if (olas::decode_frame(bad, ID, CHECK_XOR, frame))
+        olas::publish_action_power(frame.function, fan, rf_update);
+    if (olas::decode_frame(raw, ID + 1, CHECK_XOR, frame))
+      olas::publish_action_power(frame.function, fan, rf_update);
+    assert(!fan.state && fan.publications == before && shared.calls == 1);
+  }
+  // Fan, light and stateless actions all use the same waveform and counter.
   FakeTransmitter tx;
   uint8_t sequence = 1;
   const uint8_t actions[] = {0x40, 0x7C, 0xAC, 0xBC, 0x9C, 0x6C,
-                             0x20, 0x64, 0x80, 0x84, 0x8C, 0x10};
+                             0x20, 0x64, 0x80, 0x84, 0x8C, 0x10,
+                             0x50, 0x30, 0x1C, 0x18, 0x14};
   for (uint8_t function : actions) {
     for (unsigned i = 0; i < 4; ++i) {
       const uint8_t before = sequence;
@@ -94,7 +171,8 @@ int main() {
   assert(!olas::send_command(tx, ID, CHECK_XOR, sequence, 0x7C, false, true, false));
   assert(!olas::send_command(tx, ID, CHECK_XOR, sequence, 0x7C, true, false, false));
   assert(!olas::send_command(tx, ID | 0x1000000u, CHECK_XOR, sequence, 0x7C, true, true, false));
-  assert(!olas::send_command(tx, ID, CHECK_XOR, sequence, 0x50, true, true, false));
+  assert(!olas::send_command(tx, ID, CHECK_XOR, sequence, 0x70, true, true, false));
+  assert(!olas::send_command(tx, ID, CHECK_XOR, sequence, 0x28, true, true, false));
   assert(tx.calls == calls_before && sequence == seq_before);
   bool rf_update = false;
   for (auto function : actions) {
@@ -112,6 +190,61 @@ int main() {
   for (int i = 0; i < 2; ++i)
     assert(olas::send_command(tx, ID, CHECK_XOR, sequence, 0x7C, true, true, rf_update));
   assert(tx.calls == calls_before + 2 && sequence == 3);
+
+  // Interleaved fan -> direction -> light -> sleep -> timers share one counter.
+  sequence = 1;
+  const uint8_t mixed[] = {0xAC, 0x50, 0x7C, 0x30, 0x1C, 0x18, 0x14, 0x8C};
+  const uint8_t expected_sequences[] = {1, 0, 3, 2, 1, 0, 3, 2};
+  for (size_t i = 0; i < sizeof(mixed); ++i) {
+    assert(olas::send_command(tx, ID, CHECK_XOR, sequence, mixed[i], true, true, false));
+    olas::Frame sent;
+    assert(olas::decode_raw(tx.timings.data(), tx.timings.size(), ID, CHECK_XOR, sent));
+    assert(sent.function == mixed[i] && sent.sequence == expected_sequences[i]);
+  }
+
+  const uint8_t stateless[] = {olas::DIRECTION_TOGGLE, olas::SLEEP,
+                              olas::TIMER_1H, olas::TIMER_3H, olas::TIMER_6H};
+  const char *requested[] = {"direction_requested", "sleep_requested", "timer_1h_requested",
+                            "timer_3h_requested", "timer_6h_requested"};
+  const char *received[] = {"direction_received", "sleep_received", "timer_1h_received",
+                           "timer_3h_received", "timer_6h_received"};
+  for (size_t i = 0; i < sizeof(stateless); ++i) {
+    assert(stateless[i] == actions[12 + i]);  // Explicit captured-code expectations above.
+    assert(olas::is_stateless_action(stateless[i]));
+    assert(std::strcmp(olas::action_event_type(stateless[i], false), requested[i]) == 0);
+    assert(std::strcmp(olas::action_event_type(stateless[i], true), received[i]) == 0);
+    // No fixed speed/light mapping; the sleep-only power side effect is tested above.
+    assert(olas::speed_for_function(stateless[i]) == -1);
+    assert(olas::white_preset(stateless[i]) == -1);
+    assert(stateless[i] != olas::LIGHT_ON && stateless[i] != olas::LIGHT_OFF);
+    const auto before = tx.calls;
+    const auto seq = sequence;
+    assert(!olas::send_command(tx, ID, CHECK_XOR, sequence, stateless[i], false, true, false));
+    assert(!olas::send_command(tx, ID, CHECK_XOR, sequence, stateless[i], true, false, false));
+    assert(tx.calls == before && sequence == seq);
+    // Each deliberate repeat is a new logical action, including direction toggle.
+    for (int press = 0; press < 2; ++press)
+      assert(olas::send_command(tx, ID, CHECK_XOR, sequence, stateless[i], true, true, false));
+    assert(tx.calls == before + 2 && sequence == ((seq + 2u) & 3u));
+  }
+  for (uint8_t function : {uint8_t(0x40), uint8_t(0x7C), uint8_t(0x64), uint8_t(0x70), uint8_t(0x00)}) {
+    assert(!olas::is_stateless_action(function));
+    assert(olas::action_event_type(function, false) == nullptr);
+    assert(olas::action_event_type(function, true) == nullptr);
+  }
+
+  // Event callbacks are synchronous too. A received-action notification must
+  // never turn into TX or consume a second sequence, including nested callbacks.
+  for (auto function : stateless) {
+    const auto before = tx.calls;
+    sequence = olas::next_sequence(3);
+    {
+      olas::RfUpdateGuard guard(rf_update);
+      assert(olas::action_event_type(function, true) != nullptr);
+      assert(!olas::send_command(tx, ID, CHECK_XOR, sequence, function, true, true, rf_update));
+    }
+    assert(tx.calls == before && sequence == 2 && !rf_update);
+  }
 
   static_assert(olas::next_sequence(0) == 3);
   static_assert(olas::next_sequence(3) == 2);

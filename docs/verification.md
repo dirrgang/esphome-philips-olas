@@ -15,10 +15,18 @@ install GCC/Clang. CI continues to run the same test script directly.
 Tests include: bit packing, ID/check validation, seq wrap, six speeds and off,
 RAW decode with unrelated leading pulses, repeated frames and truncated input.
 The shared sender is exercised through a fake TransmitCall: all five light
-commands and six speeds/off, independent MSB-first pulse/check expectations,
+commands, direction/sleep/three timer actions and six speeds/off,
+independent MSB-first pulse/check expectations,
 four identical copies, one shared descending sequence including wraparound,
 invalid IDs/checks, startup/control-disabled gates and guarded RX callbacks
-that cannot submit TX. This does not execute ESPHome on hardware.
+that cannot submit TX. Sleep power-publication tests cover local TX and validated
+RX, retained speed 0 through 6, nested synchronous fan callbacks, rejected sends,
+invalid ID/check frames and non-sleep actions. Sleep must publish ON with exactly
+one local RF request or zero RX-triggered sends and no extra sequence decrement.
+This does not execute ESPHome on hardware.
+Action-event tests cover all ten requested/received type mappings, exclusion of
+fan/light/unknown codes, callback guarding and hidden event configuration in both
+synthetic private profiles. Actual HA event display still needs integration testing.
 Discovery tests also cover unknown IDs/non-default checks, multiple devices in
 one batch, malformed pulses, invalid tail bits and normal RX filtering.
 
@@ -200,6 +208,40 @@ synchronization were subsequently confirmed by the user for PR #31 on one
 controller; see #8/PR #31 for execution evidence. This does not establish proxy
 LIGHT OFF TX or completion of the remaining regression rows. Overlapping-client,
 failure and retuning stress tests remain #24 work.
+
+## Manual stateless action tests
+
+Use the reviewed private profile and preserve installed access/rollback as above.
+These tests require deliberate user operation; builds and CI never send RF.
+Record firmware revision, RX and TX-request/completion logs, and observed physical
+effects separately in #11/#12/#13 and the PR, using neutral device labels.
+
+| Action | RX / HA expectation | TX expectation | Physical observation to record |
+|---|---|---|---|
+| Direction toggle `0x50`, under manufacturer-permitted operating conditions | Remote press logged, sequence synchronized; no absolute direction | One shared-path request per deliberate HA press; no request from RX | Actual reversal and any stop/start behaviour; repeat only deliberately |
+| Sleep `0x30` at several starting speeds, including OFF | Fan ON plus `sleep_requested` or `sleep_received`; retained speed, no assumed active mode | Only the sleep request/four copies for HA; zero additional TX from state publication or remote RX | Startup from OFF user-confirmed via HA/remote; pattern, repeat and speed/OFF exit still to characterize |
+| Each timer `0x1C` / `0x18` / `0x14` | No active timer, remaining time or automatic fan-OFF estimate | Correct requested code and shared sequence | Initial response separately from a fully observed 1 h / 3 h / 6 h expiry |
+| Successive timer choices, repeated same timer, then speed/OFF | No inferred cancellation or replacement | Each deliberate press is one action | Reset, replacement, toggle/cancel behaviour; mark unknown if not observed |
+| Remote action → HA fan/light → remote action through wraparound | Sequence stays shared; no button replay or RX echo | Unchanged fan/light waveforms; no second sender | Device accepts alternating controls; all six speeds/off and light regressions |
+| Restart and control-disabled profile | No restored action or invented mode state; buttons hidden with fan | No startup TX; disabled control rejects actions | No unintended action; retain original-remote operation |
+| Each of five actions via HA and original remote | Exactly one matching `*_requested` / `*_received` event in HA and `[S][event]` API logs; distinct presses retained | RX event callback must not cause TX | Feedback is command activity, not acknowledgement |
+| HA reconnect / gateway restart | No newly triggered/replayed action event; historical HA timestamp can remain | No startup or reconnect TX | Missed offline events are not reconstructed |
+
+For the sleep ON-publication regression, start with HA fan OFF and use the HA
+sleep button: expect one `TX requested function=0x30`, fan ON and `sleep_requested`,
+with no additional speed/OFF request. Then start from OFF again and use the
+original remote: expect `RX function=0x30`, fan ON and `sleep_received`, with no
+TX request. The retained speed field must not change, including after a cold
+boot with no known speed. Record API logs separately from physical behaviour.
+
+Direction reversal and remote synchronization have user-confirmed evidence in
+#11/PR #32 for one test controller. Sleep startup from OFF is user-confirmed via
+HA and remote in #12; varying speed is a user description, not a measured pattern.
+Timer effects/expiry, sleep repeat/exit semantics, new event display, full
+direction operating-condition checks and remaining regressions still need
+the tests above. Do not infer a full timer timeout test from an immediate
+response. Sleep and timer expiry may leave HA's previous fan estimate stale.
+Mixed-client arbitration remains separate #24 work.
 
 ## Targeted dimming experiment
 

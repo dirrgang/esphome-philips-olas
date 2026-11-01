@@ -64,8 +64,8 @@ Function codes are masked with `command & 0xFC` (sequence bits zeroed).
 | Daylight white | `0x84` | Native TX and remote/HA sync user-confirmed |
 | Brightness up | `0x70` | RX only |
 | Brightness down | `0x28` | RX only |
-| Reverse direction | `0x50` | RX only; toggling semantics |
-| Sleep / night mode | `0x30` | RX only |
+| Reverse direction | `0x50` | Native TX and remote synchronization user-confirmed; toggle only |
+| Sleep / night mode | `0x30` | User-confirmed starts stopped fan via HA and remote; speed pattern/exit unknown |
 | Timer 1 h | `0x1C` | RX only |
 | Timer 3 h | `0x18` | RX only |
 | Timer 6 h | `0x14` | RX only |
@@ -82,6 +82,63 @@ implementation (`30819f4`). This is user-observed evidence, separate from device
 logs and host checks; it does not establish a second device or mixed-client
 arbitration. See [#8](https://github.com/dirrgang/esphome-philips-olas/issues/8)
 and [PR #31](https://github.com/dirrgang/esphome-philips-olas/pull/31).
+
+## Stateless direction, sleep and timer actions
+
+Five template buttons submit `0x50`, `0x30`, `0x1C`, `0x18` and `0x14` through
+the same sender, check XOR, four-copy waveform and sequence as fan/light. Their
+RX path validates ID/check, retains the existing duplicate filter, synchronizes
+the next shared sequence, logs the command and emits a `*_received` action event.
+It does not press the HA button,
+echo RF or infer active mode/timer state. Sleep is the power-estimate exception:
+accepted local or remote `0x30` publishes fan ON under the no-send guard.
+Direction/timer actions leave power estimates unchanged. A deliberate repeated button press submits
+a new action with a new sequence; no automatic retry is added.
+
+- Direction `0x50` is a toggle, with no confirmed forward/reverse state.
+- Sleep `0x30` starts the stopped fan via HA and original remote (user-confirmed
+  on one test controller). The user describes dynamically varying speed based on
+  prior experience; the pattern has not been measured. Toggle/repeat semantics,
+  exit conditions and actual speeds remain unknown. No active sleep state or
+  inferred fixed speed is published. Fan power is optimistically ON after a
+  sent or accepted remote sleep command, matching observed startup from OFF. The
+  speed field is retained, including zero/unknown after boot, and can be stale
+  during the dynamic pattern. Publication never sends a second speed command.
+- Timer commands are labelled 1 h / 3 h / 6 h from captured remote functions.
+  Whether selections reset, toggle, cancel or replace timers is unknown. There
+  is no countdown, automatic cancellation or assumed HA fan-OFF at expiry.
+
+Direction TX and physical reversal, plus original-remote synchronization, were
+user-confirmed on one test controller for PR #32 (`6e17499`) on 2026-10-31.
+Device logs show native `0x50` seq 3 and later remote `0x50` seq 2; no following
+TX request appears in the supplied excerpt. This is not an independent on-air
+measurement or absolute direction feedback. Sleep startup from OFF is now
+user-observed via both local TX and original remote, separately from speed-pattern
+characterization. All three timers remain **physically unverified for activation
+and expiry**; a native 1 h TX-request log is not physical confirmation. Sleep operation and timer
+expiry may invalidate the retained fan estimate without an observable RF event.
+Evidence and semantic questions belong to [#11](https://github.com/dirrgang/esphome-philips-olas/issues/11),
+[#12](https://github.com/dirrgang/esphome-philips-olas/issues/12) and
+[#13](https://github.com/dirrgang/esphome-philips-olas/issues/13).
+
+### Action events
+
+The native `template` event entity reports `direction_requested/received`,
+`sleep_requested/received` and `timer_1h_requested/received`,
+`timer_3h_requested/received`, `timer_6h_requested/received` (ten separate types).
+Local events follow accepted shared-sender requests; RX events follow the same
+ID/check and duplicate filtering as the control path. The scoped RX guard also
+covers synchronous event callbacks, preventing a callback from retransmitting.
+There is no event for blocked sends or for fan/light/unrecognized commands.
+Existing bounded exact-frame dedup remains a heuristic; distinct new sequences
+are accepted. Events carry no device IDs, raw captures or inferred remaining time.
+
+HA displays the event time and type, and the API log formatter prints `[S][event]`.
+This records command activity, not RF delivery or an active timer/sleep state.
+The pinned native API does not replay old events on initial subscription/reconnect;
+events missed while HA is offline are not reconstructed. HA may retain an old
+event timestamp as history. See the [HA event model](https://www.home-assistant.io/integrations/event/)
+and [HA ESPHome event platform](https://github.com/home-assistant/core/blob/2026.10.4/homeassistant/components/esphome/event.py).
 
 ## Synthetic example
 

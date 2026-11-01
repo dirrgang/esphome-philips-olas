@@ -9,7 +9,8 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
 
 - The receiver scans raw marks/spaces for a valid frame; the pure helper
   `esphome/include/olas_protocol.h` checks ID, checksum and framing.
-- Fan and binary-light `on_state`, and the white-preset select's `set_action`,
+- Fan and binary-light `on_state`, the white-preset select's `set_action`,
+  and direction/sleep/timer buttons' `on_press`
   invoke the same synchronous `olas_send` script. The portable `send_command`
   template uses the existing transmitter's TransmitCall API, encodes 41 bits,
   submits four identical copies, and decrements the shared 2-bit sequence once.
@@ -21,6 +22,20 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
   fan restore publication and light startup publication are suppressed for RF.
   Fan speed/off mapping and last nonzero speed retention remain unchanged.
 - Physical remote presses update the *commanded/observed* HA state.
+- Direction/sleep/timer RX updates the same next-sequence and command log,
+  and emits an action event under the synchronous RX guard.
+  It never presses a button, retransmits or invents an absolute mode/timer state.
+  Sleep additionally publishes fan ON, reflecting user-confirmed startup from OFF.
+  The same portable helper runs after accepted local sleep submission; a scoped
+  RX-update guard suppresses the synchronous fan.on_state callback in both paths.
+  Speed is retained unchanged, not inferred from the dynamic sleep pattern.
+  These five template buttons inherit `olas_fan_internal` and the shared sender's
+  control/startup/RX guards. No new counter, protocol or transport is introduced.
+- Native `template` event `olas_action` provides HA/API feedback for all five
+  actions: `*_requested` after local send submission and `*_received` after
+  validated, deduplicated RX. It never represents active mode/timer state. The
+  sender's early return prevents events for blocked startup/control/RX sends.
+  Its visibility inherits `olas_fan_internal`, like the action buttons.
 - Passive learning uses the same RX callback with an opt-in 60-second window;
   unknown frames remain candidates, never automatic pairings or TX triggers.
 - Per-installation overlays and artifacts live under ignored `esphome/local/`;

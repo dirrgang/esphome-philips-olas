@@ -140,6 +140,29 @@ inline bool decode_raw(const int32_t *timings, size_t size, uint32_t expected_id
 constexpr uint8_t LIGHT_ON = 0x7C;
 constexpr uint8_t LIGHT_OFF = 0xBC;
 constexpr uint8_t WHITE_PRESETS[] = {0x6C, 0x64, 0x84};
+constexpr uint8_t DIRECTION_TOGGLE = 0x50;
+constexpr uint8_t SLEEP = 0x30;
+constexpr uint8_t TIMER_1H = 0x1C;
+constexpr uint8_t TIMER_3H = 0x18;
+constexpr uint8_t TIMER_6H = 0x14;
+
+// Actions have no reconciled absolute state or remaining-time telemetry.
+constexpr bool is_stateless_action(uint8_t function) {
+  return function == DIRECTION_TOGGLE || function == SLEEP ||
+         function == TIMER_1H || function == TIMER_3H || function == TIMER_6H;
+}
+
+// A request/observation is an event, not evidence of an active mode or timer.
+constexpr const char *action_event_type(uint8_t function, bool received) {
+  switch (function) {
+    case DIRECTION_TOGGLE: return received ? "direction_received" : "direction_requested";
+    case SLEEP: return received ? "sleep_received" : "sleep_requested";
+    case TIMER_1H: return received ? "timer_1h_received" : "timer_1h_requested";
+    case TIMER_3H: return received ? "timer_3h_received" : "timer_3h_requested";
+    case TIMER_6H: return received ? "timer_6h_received" : "timer_6h_requested";
+    default: return nullptr;
+  }
+}
 
 constexpr int white_preset(uint8_t function) {
   for (int i = 0; i < 3; ++i)
@@ -160,6 +183,17 @@ class RfUpdateGuard {
   bool previous_;
 };
 
+// Sleep is observed to start a stopped fan. Publish commanded/overheard power
+// without inventing a speed, active-mode state or a second RF command.
+template<typename Fan>
+void publish_action_power(uint8_t function, Fan &fan, bool &rf_update) {
+  if (function != SLEEP)
+    return;
+  RfUpdateGuard guard(rf_update);
+  fan.state = true;
+  fan.publish_state();
+}
+
 // Duck-typed ESPHome TransmitCall API, also exercised by a host fake. No radio
 // ownership, queue or framework dependency. True means submitted, NOT delivered.
 template<typename Transmitter>
@@ -168,7 +202,8 @@ bool send_command(Transmitter &tx, uint32_t address, uint8_t check_xor,
                   bool ready, bool rf_update) {
   if (!enabled || !ready || rf_update || address > MASK_ID ||
       (speed_for_function(function) < 0 && function != LIGHT_ON &&
-       function != LIGHT_OFF && white_preset(function) < 0))
+       function != LIGHT_OFF && white_preset(function) < 0 &&
+       !is_stateless_action(function)))
     return false;
   const auto raw = encode_frame(address, make_command(function, sequence), check_xor);
   auto call = tx.transmit();

@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import io
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -106,6 +107,22 @@ class ProfileTests(unittest.TestCase):
             self.assertNotIn("wrong-root-", result.stdout)
             self.assertNotIn("radio_frequency:", result.stdout)
             self.assertIn("internal: true", result.stdout)
+            # Validate merged package entities, not just a stray internal flag:
+            # receive-only profiles must hide every new RF action button.
+            section = re.search(r"(?ms)^button:\n(.*?)(?=^\S|\Z)", result.stdout).group(1)
+            blocks = re.split(r"(?m)^  - ", section)[1:]
+            buttons = {match.group(1): block for block in blocks
+                       if (match := re.search(r"(?m)^    id: (\S+)$", block))}
+            for button_id in ["olas_direction_toggle", "olas_sleep", "olas_timer_1h",
+                              "olas_timer_3h", "olas_timer_6h"]:
+                self.assertIn("    internal: true\n", buttons[button_id])
+            self.assertIn("    has_direction: false\n", result.stdout)
+            events = re.search(r"(?ms)^event:\n(.*?)(?=^\S|\Z)", result.stdout).group(1)
+            self.assertIn("    id: olas_action\n", events)
+            self.assertIn("    internal: true\n", events)
+            for action in ["direction", "sleep", "timer_1h", "timer_3h", "timer_6h"]:
+                for source in ["requested", "received"]:
+                    self.assertIn(f"      - {action}_{source}\n", events)
 
 
 if __name__ == "__main__":
