@@ -1,53 +1,26 @@
 # ESPHome Philips Olas
 
-An independent ESPHome gateway for Philips Olas ceiling fans, using an
-ESP32-S2 Mini and a CC1101 at 434 MHz ASK/OOK. It exposes a native six-speed
-Home Assistant fan, independent on/off light and three discrete white presets,
-receives original-remote commands and includes passive
-RF discovery. It is not an official Philips/Signify integration.
+Independent ESPHome gateway for Philips Olas ceiling fans, using an ESP32-S2
+Mini and CC1101 at 434 MHz ASK/OOK. Not an official Philips/Signify product.
+It integrates a six-speed Home Assistant fan, independent light ON/OFF,
+three discrete white presets (**Warmweiß**, **Neutralweiß**, **Tageslichtweiß**),
+original-remote reception and passive RF learning.
 
-Dimming is not implemented. Stateless buttons send direction toggle, sleep mode
-and the 1 h / 3 h / 6 h timer commands through the same RF path as fan and light.
-HA reflects commanded or overheard state, not independently confirmed telemetry.
+**Controls:** `Drehrichtung wechseln` toggles direction;
+`Schlafmodus auslösen` requests sleep; three buttons request 1 h / 3 h / 6 h
+timers. The native **Aktion** event entity reports `*_requested` (local
+send request) and `*_received` (decoded remote command). Buttons have no
+persistent active-mode/timer state. Sleep physically starts a stopped fan in
+the tested setup; the HA ON indication is an estimate, not feedback.
 
-**Drehrichtung wechseln** sends a toggle; it does not report forward/reverse.
-**Schlafmodus auslösen** sends the captured sleep opcode without reporting an
-active mode. The three **Timer** buttons report neither a running timer nor
-remaining time. Sleep exit conditions and timer reset/replacement/cancellation
-remain unknown. Direction toggle and original-remote synchronization are
-user-confirmed on one test controller. Sleep starts the stopped fan when invoked
-from either HA or the original remote (user-observed). The user's description of
-dynamically varying speed is not a measured speed pattern. Timer activation/expiry
-and remaining sleep semantics still need the [manual action tests](docs/verification.md#manual-stateless-action-tests).
-Remote action commands synchronize the shared sequence and are logged without
-pressing buttons. A sent or accepted remote sleep command also publishes fan ON,
-matching the observed startup behaviour. The existing speed value is retained
-(including an unknown/zero value after boot); it is not the sleep pattern's
-measured speed. No extra speed command is sent. Other stateless actions leave
-power estimates unchanged; dynamic sleep speed and timer expiry can still leave
-the retained speed/power estimate stale.
-
-**Aktion** is a native event entity for these five controls. It reports a type
-such as `sleep_requested` / `sleep_received` or `timer_1h_requested` /
-`timer_1h_received` and the last event's time in HA. `requested` means a local
-send request; `received` means an accepted RF command. Neither confirms an active
-mode/timer or RF delivery. In ESPHome's API logs these appear as `[S][event]`.
-Add the event entity to the HA dashboard or inspect its details/history; button
-entities themselves still have no persistent mode state.
-
-The light has no brightness or continuous Kelvin control. **Weißton** offers
-Warmweiß, Neutralweiß and Tageslichtweiß; choosing one sends only that preset,
-without an extra power command. Presets do not establish whether the light is on.
-Remote power/preset commands update the corresponding entities without RF echo.
-The preset starts unknown; the binary light starts OFF as an assumed UI default,
-even if the physical lamp is on. Neither entity confirms state after RF loss,
-missed commands or a restart. Startup/restoration sends no Olas RF. These new
-entity paths require the [manual hardware checks](docs/verification.md).
-
-Work items and execution evidence are maintained in
-[GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues) and PRs;
-the [roadmap issue](https://github.com/dirrgang/esphome-philips-olas/issues/19)
-links the related work. This repository documents behaviour and procedures.
+**Known limits:** brightness and continuous Kelvin controls are not
+implemented. Fan/light values represent commanded or overheard state, **not
+physical telemetry**; reboot or lost RF can make them stale. The current
+firmware controls **one RF ID per installed profile**. Device commands and
+open questions belong to [protocol](docs/protocol.md), while HA state,
+events and RF-proxy concurrency belong to
+[architecture](docs/architecture.md). Dated hardware evidence and unresolved
+work remain in [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues).
 
 ## Hardware
 
@@ -58,7 +31,7 @@ links the related work. This repository documents behaviour and procedures.
 
 ## Development
 
-Install [mise](https://mise.jdx.dev/), then run from the repository root:
+Use [mise](https://mise.jdx.dev/) to install the pinned toolchain:
 
 ```sh
 mise install
@@ -66,37 +39,33 @@ mise run version
 mise run test
 ```
 
-Mise selects Python 3.13, uv 0.12.10 and an isolated ESPHome 2026.10.1 CLI.
-Host tests require Bash and C++17. On Windows, install Git for Windows in its
-standard location for Git Bash; mise supplies Zig 0.15.2. Unix uses GCC/Clang.
-Transitive Python packages and firmware tools do not yet have a full lockfile.
-
-The separate [ESPHome firmware CI](.github/workflows/esphome.yml) validates the
-synthetic gateway configuration, asserts a deliberately broken include is
-rejected, and compiles ESP32-S2 firmware on relevant PRs/pushes. Reproduce with
-`mise run config`, `mise run smoke-config` and `mise run compile`. No CI
-job flashes hardware or performs physical RF tests; see
-[verification](docs/verification.md).
+The environment includes Python 3.13, uv 0.12.10 and ESPHome 2026.10.1.
+Host tests need Bash/C++17 (Git Bash and pinned Zig on Windows).
+[ESPHome firmware CI](.github/workflows/esphome.yml) checks a synthetic
+configuration, rejects a broken include and compiles for ESP32-S2; it does
+**not** flash hardware or prove RF behavior. See
+[verification](docs/verification.md) for reproducible tests and evidence limits.
 
 ## Generic RF proxy diagnostic (experimental)
 
-The receive-only diagnostic uses ESPHome's encrypted native API and does not
-modify firmware. It requires an interactive terminal and the intended device's
-verified 24-bit RF ID and 8-bit check XOR. Use the IP from your private profile;
-never commit private identifiers, keys, or raw RF captures:
+The separate receive-only CLI subscribes to the ESPHome native API without
+changing firmware. Use verified private target parameters and an interactive
+terminal:
 
 ```sh
 mise run rf-diagnose -- <gateway-ip> --fan-id <id-hex> --check-xor <xor-hex>
 ```
 
-To test a **single LIGHT ON transmit** on an already configured gateway,
-append `--tx-light-on --post-rx`; a fresh original-remote LIGHT OFF and an
-explicit interactive `SEND` confirmation are required. Never transmit from CI
-or unattended agent runs; interactive hardware work requires explicit user
-authorization. See [verification](docs/verification.md) and
-[PoC #23](https://github.com/dirrgang/esphome-philips-olas/issues/23).
-The API is experimental; these tests do not establish a stock HA receive feed
-or mixed-client TX arbitration.
+Only after an authorized physical test, `--tx-light-on --post-rx` permits
+a guarded LIGHT ON experiment requiring fresh remote LIGHT OFF and explicit
+terminal `SEND`. Never transmit from CI or unattended agent runs.
+See the [diagnostic procedure](docs/verification.md#generic-esphome-rf-proxy-diagnostic--23).
+
+**Use one coordinated RF-proxy transmit owner.** Independent API clients
+can displace each other's completion responses; a negative reply does not
+prove no RF emission and must not be blindly retried. The proxy is not a
+stock HA generic RF receiver. See
+[transport limits](docs/architecture.md#shared-transmitter-limits-esphome-2026101).
 
 ## Private hardware workspace
 
@@ -171,43 +140,41 @@ hardware. The fallback AP has no web configuration interface.
 
 ## Discover a remote
 
-In HA, press **RF lernen (60 s)**, then press speed 1, speed 2 and off on one
-intended remote. Read the `olas.learn` logs. **RF Lernen stoppen** closes the
-window early; it also closes automatically and starts inactive after reboot.
-Learning never transmits or saves a pairing automatically.
+Press **RF lernen (60 s)** in HA, then speed 1, speed 2 and OFF on the
+intended original remote. Check `olas.learn` for one stable device ID and
+check-XOR candidate across different commands and sequence values. Learning
+is passive, ends automatically (or by **RF Lernen stoppen**) and does not
+save a pairing.
 
-Logs show a structural candidate ID, function, sequence, check and
-`xor_candidate` (command XOR received check). Compare several commands and
-sequences for a stable ID/check constant; timing recognition is not authentication.
-Store the confirmed values only in that profile's private `secrets.yaml`, set
-`olas_control_enabled: "true"` and `olas_fan_internal: "false"`, then validate,
-compile, upload and perform the [hardware smoke test](docs/verification.md).
+Two independent physical units had different IDs/check constants, each
+matching XOR of its three ID bytes. This is a useful derivation, **not**
+a proven universal rule. Verify the candidate with multiple captures;
+retain an explicit check-XOR override. See
+[protocol/check derivation](docs/protocol.md#check-byte-and-per-device-xor-constant).
+RF timing alone is not authentication.
 
-With control disabled, normal fan/light RX-state updates and Olas TX are gated,
-and RF proxies are excluded. Light controls inherit `olas_fan_internal`; optional
-`olas_light_internal` can hide them separately. With control enabled, fan, light
-and RF proxies remain available alongside learning. Use one RF client at a time
-until [#24](https://github.com/dirrgang/esphome-philips-olas/issues/24) stress and
-failure tests are complete; the shared helper adds no custom queue. Two separate
-proxy connections can displace each other's completion replies even when each
-client waits for its own reply. Use one coordinated proxy owner and do not
-automatically retry negative replies from overlapping clients; see
-[the transport limits](docs/architecture.md#shared-transmitter-limits-esphome-2026101).
-Other fans
-need their own capture and compatibility test; no universal check constant is assumed.
+Save the verified ID/check in the intended profile's **private**
+`secrets.yaml`; enable `olas_control_enabled: "true"` and expose the fan
+with `olas_fan_internal: "false"`. Validate, compile and install that
+profile, then perform the
+[physical smoke tests](docs/verification.md#physical-regression-matrix).
+New profiles default to disabled control and hidden fan. A different device
+requires its own capture and verification.
 
 ## Documentation
 
-- [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues): work and evidence.
-- [Protocol](docs/protocol.md): frame format, commands and open hypotheses.
-- [Verification](docs/verification.md): development and hardware test procedure.
-- [Architecture](docs/architecture.md): codec, ESPHome glue and boundaries.
-- [Upstream attribution](docs/upstream.md) and [agent instructions](AGENTS.md).
+- [Protocol](docs/protocol.md): RF frame, opcode and physical-device knowledge.
+- [Architecture](docs/architecture.md): components, HA state/events and shared
+  CC1101/RF-proxy constraints.
+- [Verification](docs/verification.md): reproducible tests and evidence rules.
+- [Hardware](docs/hardware.md), [upstream attribution](docs/upstream.md) and
+  [agent/contribution rules](AGENTS.md).
+- [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues):
+  remaining work and dated evidence.
 
 ## License and attribution
 
-Original code is [MIT licensed](LICENSE). The independent
+The repository uses the [MIT license](LICENSE). It builds on publicly
+documented protocol research from
 [kercle/philips-olas-remote](https://github.com/kercle/philips-olas-remote)
-project provides MIT-licensed standalone ESP8266 firmware and protocol research.
-This project uses ESPHome's own CC1101, RX/TX and native entity components;
-it does not depend on that firmware or copy its source files.
+without depending on that firmware. See [upstream attribution and licensing](docs/upstream.md).
