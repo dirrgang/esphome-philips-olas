@@ -79,9 +79,11 @@ reception and independent physical effect are different evidence levels. See
   remaining time, cancel/replacement rule or expiry feedback is established.
   Physical expiry may leave the prior power estimate stale.
 
-The native **Aktion** `template` event entity provides ten event types:
-`direction_requested/received`, `sleep_requested/received` and
-`timer_1h/3h/6h_requested/received`. A `requested` event records a local
+The native **Aktion** `template` event entity provides ten exact
+event types: `direction_requested`, `direction_received`,
+`sleep_requested`, `sleep_received`, `timer_1h_requested`,
+`timer_1h_received`, `timer_3h_requested`, `timer_3h_received`,
+`timer_6h_requested` and `timer_6h_received`. A `requested` event records a local
 accepted sender request; `received` records validated, deduplicated RF.
 Neither confirms delivery, a mode state or physical effect. Events are
 guarded against echo, blocked sends emit no requested event, and events
