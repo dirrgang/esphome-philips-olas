@@ -5,6 +5,11 @@
 - Initial independent project: https://github.com/kercle/philips-olas-remote
   (MIT-licensed ESP8266/CC1101 controller, most timing and opcode research).
 - Additional on-device ESPHome CC1101 captures: **2026-10-30**.
+- **Two different physical Olas units in separate installations** have been
+  successfully controlled with individually configured 24-bit RF IDs and
+  check-XOR constants. Both independently observed ID/check pairs agree with
+  the ID-byte-XOR derivation described below. They were not operated
+  simultaneously by one gateway; see [#20](../issues/20).
 - The full local capture was decoded and the resulting device accepted our
   generated RF command. No over-the-air acknowledgement has been observed.
 
@@ -28,21 +33,50 @@ bits 40–17    16–11           10–9        8–1           0
 
 - Sequence cycles downward modulo 4: 2 → 1 → 0 → 3 → 2.
 - All frame copies during one physical press use the same sequence.
-- An independently observed remote used `check = command XOR 0x25`.
-- Upstream firmware currently implements `command XOR 0x5B` for its device.
-- **Unproven hypothesis:** XOR of the three ID bytes matched the observed
-  constant for one remote. This does not establish a general derivation rule;
-  keep the check constant configurable and verify each pairing independently.
-- Receive-only discovery can parse complete structural candidates without an
-  expected ID/check. Its `xor_candidate = command XOR received_check` is only
-  an observation from that frame, not an integrity check or pairing result.
-  Verify a consistent candidate across different commands and sequences for
-  each intended remote before configuring control. Compatibility is per target.
-- Discovery execution evidence is recorded in
-  [GitHub issue #15](https://github.com/dirrgang/esphome-philips-olas/issues/15);
-  a consistent capture does not establish a universal derivation rule.
+- The 8-bit command includes the 6-bit function and 2-bit sequence;
+  the check is calculated from the **entire command byte**, including sequence.
+- The per-device check XOR constant differs between independently observed
+  remotes. Its derivation is explained below.
 - This protocol is not authenticated or encrypted. Do not publish captures of
   personal remotes if their IDs matter to your threat model.
+
+### Check byte and per-device XOR constant
+
+For a 24-bit remote ID `0xAABBCC`, the following rule matches **both
+independently observed physical devices** (with different IDs and constants):
+
+```text
+check_xor = AA XOR BB XOR CC
+command   = (function & 0xFC) | (sequence & 0x03)
+check     = command XOR check_xor
+```
+
+For example, using a **synthetic** ID `0x123456`:
+
+```text
+check_xor = 0x12 XOR 0x34 XOR 0x56 = 0x70
+command   = 0x40 | 0x02           = 0x42  (speed 1, sequence 2)
+check     = 0x42 XOR 0x70         = 0x32
+```
+
+**Evidence and confidence:** two separate real Olas fans were controlled with
+different individually observed ID/check pairs; each check-XOR constant equals
+the XOR of that ID's three bytes. This supports the derivation as a practical
+candidate for other devices, not as a proven universal invariant across all
+Olas hardware revisions. The upstream firmware uses a fixed `0x5B` constant;
+whether its device's ID also produces `0x5B` has not been independently
+checked here. Keep `check_xor` explicitly configurable as an override, validate
+the candidate against multiple commands and sequences from each target remote,
+and do not assume its acceptance without a physical test.
+
+Receive-only discovery can parse complete structural candidates without an
+expected ID/check. Its `xor_candidate = command XOR received_check` is only an
+observation from that frame, not an integrity check or pairing result. Compare
+the candidate with the ID-byte XOR, and verify a stable constant across
+different commands and sequences before enabling TX. Discovery results are
+recorded in [#15](https://github.com/dirrgang/esphome-philips-olas/issues/15);
+the two-device/same-gateway distinction is tracked in [#20](../issues/20).
+Keep real RF IDs and raw captures private.
 
 ## Verified local command codes
 
@@ -140,10 +174,15 @@ events missed while HA is offline are not reconstructed. HA may retain an old
 event timestamp as history. See the [HA event model](https://www.home-assistant.io/integrations/event/)
 and [HA ESPHome event platform](https://github.com/home-assistant/core/blob/2026.10.4/homeassistant/components/esphome/event.py).
 
-## Synthetic example
+## Synthetic examples
 
-- Test fixture ID `0x654321`, check XOR `0xA7`, speed 1, sequence 0:
-  `command=0x40`, `check=0xE7`, packed frame `0xCA864281CE`.
+- **ID-derived check:** synthetic ID `0x123456`, check XOR `0x70`,
+  speed 1, sequence 2: `command=0x42`, `check=0x32`.
+- **Explicit override / codec fixture:** synthetic ID `0x654321`,
+  configured check XOR `0xA7`, speed 1, sequence 0: `command=0x40`,
+  `check=0xE7`, packed frame `0xCA864281CE`. This deliberately does
+  **not** follow the ID-byte-XOR hypothesis; it tests independently
+  configurable check values, not a third physical device.
 - These values are synthetic; real identifiers and captures remain private.
 
 ## Interpreting an ESPHome RAW log
