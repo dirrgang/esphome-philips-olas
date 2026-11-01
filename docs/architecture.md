@@ -21,21 +21,9 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
 - `olas_ready` enables Olas sends after component setup (`on_boot: -100`). Both
   fan restore publication and light startup publication are suppressed for RF.
   Fan speed/off mapping and last nonzero speed retention remain unchanged.
-- Physical remote presses update the *commanded/observed* HA state.
-- Direction/sleep/timer RX updates the same next-sequence and command log,
-  and emits an action event under the synchronous RX guard.
-  It never presses a button, retransmits or invents an absolute mode/timer state.
-  Sleep additionally publishes fan ON, reflecting user-confirmed startup from OFF.
-  The same portable helper runs after accepted local sleep submission; a scoped
-  RX-update guard suppresses the synchronous fan.on_state callback in both paths.
-  Speed is retained unchanged, not inferred from the dynamic sleep pattern.
-  These five template buttons inherit `olas_fan_internal` and the shared sender's
-  control/startup/RX guards. No new counter, protocol or transport is introduced.
-- Native `template` event `olas_action` provides HA/API feedback for all five
-  actions: `*_requested` after local send submission and `*_received` after
-  validated, deduplicated RX. It never represents active mode/timer state. The
-  sender's early return prevents events for blocked startup/control/RX sends.
-  Its visibility inherits `olas_fan_internal`, like the action buttons.
+- Accepted remote frames update command-derived HA estimates without RF echo.
+  Direction, sleep and timer actions use the same sequence and receive guards;
+  see the [state model](#state-estimates-and-home-assistant-actions).
 - Passive learning uses the same RX callback with an opt-in 60-second window;
   unknown frames remain candidates, never automatic pairings or TX triggers.
 - Per-installation overlays and artifacts live under ignored `esphome/local/`;
@@ -57,37 +45,75 @@ Architecture proposals and implementation sequencing are tracked in
 [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues).
 This document describes the implementation in this checkout.
 
+## State estimates and Home Assistant actions
+
+**No observed Olas RF acknowledgement or independent physical-state telemetry
+exists.** HA power, speed and light values are estimates based on commands
+sent or decoded, not measurements. A local TX request, API completion, RF
+reception and independent physical effect are different evidence levels. See
+[protocol](protocol.md) for device commands and
+[verification](verification.md) for reproducible tests.
+
+- **Fan power/speed:** deliberate HA OFF retains the last nonzero speed.
+  When the ESP gateway was unplugged while the physical fan kept running, its
+  restarted HA entity showed OFF. This is a proven **estimate divergence**,
+  not an observed physical OFF or a boot-time RF transmission. Cached ON
+  restoration is also unreliable if the remote acts while the gateway is
+  offline. Startup/restore RF requests are guarded in software, but an
+  independent boot-time RF measurement has not been supplied. Reconciliation
+  policy is open in [#14](https://github.com/dirrgang/esphome-philips-olas/issues/14).
+- **Light:** binary power starts as an assumed OFF UI state; the white
+  preset starts unknown. A preset does not automatically set power. Missing
+  RF frames or reconnects may invalidate both estimates. Absolute brightness
+  and continuous Kelvin values are not exposed.
+- **Direction:** `0x50` is a stateless toggle, not a measured forward/reverse
+  trait; the direction may be unknown after missed frames.
+- **Sleep:** `0x30` physically starts a stopped fan in the tested setup. A
+  local accepted request or validated remote command publishes an estimated
+  **fan ON** while retaining the prior speed (including zero after boot).
+  The speed value is not a measurement of the dynamic sleep behavior.
+  A scoped guard prevents a second fan-speed/OFF RF send on publication.
+  The final merged behavior still needs an HA/hardware regression
+  ([#12](https://github.com/dirrgang/esphome-philips-olas/issues/12)).
+- **Timers:** 1 h, 3 h and 6 h remain stateless actions; no active timer,
+  remaining time, cancel/replacement rule or expiry feedback is established.
+  Physical expiry may leave the prior power estimate stale.
+
+The native **Aktion** `template` event entity provides ten event types:
+`direction_requested/received`, `sleep_requested/received` and
+`timer_1h/3h/6h_requested/received`. A `requested` event records a local
+accepted sender request; `received` records validated, deduplicated RF.
+Neither confirms delivery, a mode state or physical effect. Events are
+guarded against echo, blocked sends emit no requested event, and events
+missed during HA disconnection are not replayed. Buttons carry no persistent
+action state. Actual HA event rendering in the final
+[PR #32](https://github.com/dirrgang/esphome-philips-olas/pull/32)
+firmware remains unverified.
+
+Current firmware controls **one RF address per private gateway profile**.
+Two physical fans with different ID/check values were independently
+controlled at separate installations. One gateway controlling multiple
+physical fans simultaneously has not been tested or deployed. Host-only
+A → B → A sequence-isolation tests are not physical multi-device support.
+See [#20](https://github.com/dirrgang/esphome-philips-olas/issues/20)
+and the pending [ADR #27](https://github.com/dirrgang/esphome-philips-olas/issues/27).
+
 ## Light representation and transport limits
 
-ESPHome **2026.10.1** provides `binary` light with `ON_OFF` traits and a
-`template` binary output; it does not need a custom light platform. Continuous
-color-temperature/brightness traits would misrepresent this device, so a native
-template select supplies exactly three white presets instead. Its lambda has no
-initial or restored option and publishes only commanded/overheard presets.
-The light uses `ALWAYS_OFF`: OFF after boot is an assumption, not a measurement.
-Preset commands do not change the estimated power state. No ACK is available.
+ESPHome **2026.10.1** offers a `binary` light with `ON_OFF` traits and an
+inert `template` binary output. A native select represents the three
+discrete white presets. Without feedback, continuous Kelvin/absolute brightness
+traits would misrepresent the device. `ALWAYS_OFF` is only the light's startup
+UI assumption; the preset starts unknown. See [state model](#state-estimates-and-home-assistant-actions).
 
-Inspected installed pinned sources (with tagged upstream references):
-[TransmitCall/send_](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/remote_base/remote_base.cpp),
-[ESP32 RMT](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/remote_transmitter/remote_transmitter_rmt.cpp),
+Pinned component sources:
 [binary light](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/binary/light/binary_light_output.h),
-[LightState](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/light/light_state.cpp),
+[LightState](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/light/light_state.cpp)
 and [template fan](https://github.com/esphome/esphome/blob/2026.10.1/esphome/components/template/fan/template_fan.cpp).
-The ESP32/IDF >=5.5.1 nonblocking sender flushes pending completion before
-encoding the next RMT buffer. It waits for the previous transmission and fires
-completion before the next TX hook. This supports consecutive calls on the same
-transmitter from the main loop; it is not a general thread-safe queue. Keep hooks
-limited to CC1101 TX/RX mode changes; do not start reentrant sends from them.
-
-The proxy continues to use that same transmitter. No second sender, frequency
-retuning or custom queue is introduced. Completion is not a device ACK. Mixed
-proxy/Olas short-gap, failure recovery and frequency handling remain hardware
-gates in [#24](https://github.com/dirrgang/esphome-philips-olas/issues/24): use one
-client at a time and wait for completion/RX recovery before switching clients.
-Generic proxy commands also bypass the Olas sequence/state helper; observe a
-fresh original-remote command before resuming native control. This is an
-incremental extension of the working gateway, not a decision on
-[#27](https://github.com/dirrgang/esphome-philips-olas/issues/27) or PR #21.
+The native Olas path and generic RF proxy use the **same** CC1101 sender;
+its transport and reply-ownership limitations are documented in the next
+section. Generic proxy sends bypass the Olas sequence estimator; observe a
+fresh remote frame before resuming native control.
 
 ## Shared-transmitter limits (ESPHome 2026.10.1)
 
@@ -155,14 +181,21 @@ transmits while retaining the previous reply. Merely queuing native Olas sends
 cannot fix the proxy's reply ownership. There is no guarantee of radio recovery
 on every hardware/driver failure.
 
-## Known modelling traps
+## Receive batching and duplicate suppression
 
-- **No ACK:** publishing a command is not proof of actuation.
-- **Light brightness:** repeated up/down is relative, not automatically a
-  truthful 0–100% brightness sensor.
-- **Direction toggle:** physical direction may be unknown after reboot or
-  missed RF; avoid advertising an absolute state without reconciliation.
-- **Duplicate RF bursts:** suppress repeated frames but don't suppress a
-  genuinely new press of the same button.
-- **Simultaneous remotes and ESP32:** each received matching frame advances
-  the local next-sequence value; sequence wrap is not authentication.
+The current native gateway processes the first valid Olas frame in an RMT
+raw batch and suppresses an **exact** repeated frame for roughly 400 ms.
+That is a heuristic for multiple copies of one physical press, not a
+reliable boundary for rapid presses or held buttons. The alternative
+receive-only multi-device scanner in
+[PR #21](https://github.com/dirrgang/esphome-philips-olas/pull/21)
+is not deployed.
+
+The original remote's rapid ON → OFF failure cannot be explained by gateway
+deduplication alone because the fan itself remained ON. The observed
+device-level effect is documented in
+[protocol](protocol.md#device-behavior-and-open-protocol-questions);
+controller-side receive improvements are tracked in
+[#6](https://github.com/dirrgang/esphome-philips-olas/issues/6)
+and [#7](https://github.com/dirrgang/esphome-philips-olas/issues/7).
+A two-bit sequence counter is not authentication or delivery feedback.
