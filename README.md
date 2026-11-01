@@ -19,9 +19,13 @@ user-confirmed on one test controller. Sleep starts the stopped fan when invoked
 from either HA or the original remote (user-observed). The user's description of
 dynamically varying speed is not a measured speed pattern. Timer activation/expiry
 and remaining sleep semantics still need the [manual action tests](docs/verification.md#manual-stateless-action-tests).
-Remote action commands synchronize the shared sequence and are logged, without
-pressing buttons or changing estimated fan/light state. Sleep or an unobserved
-timer expiry can therefore leave the fan estimate stale.
+Remote action commands synchronize the shared sequence and are logged without
+pressing buttons. A sent or accepted remote sleep command also publishes fan ON,
+matching the observed startup behaviour. The existing speed value is retained
+(including an unknown/zero value after boot); it is not the sleep pattern's
+measured speed. No extra speed command is sent. Other stateless actions leave
+power estimates unchanged; dynamic sleep speed and timer expiry can still leave
+the retained speed/power estimate stale.
 
 **Aktion** is a native event entity for these five controls. It reports a type
 such as `sleep_requested` / `sleep_received` or `timer_1h_requested` /

@@ -25,6 +25,10 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
 - Direction/sleep/timer RX updates the same next-sequence and command log,
   and emits an action event under the synchronous RX guard.
   It never presses a button, retransmits or invents an absolute mode/timer state.
+  Sleep additionally publishes fan ON, reflecting user-confirmed startup from OFF.
+  The same portable helper runs after accepted local sleep submission; a scoped
+  RX-update guard suppresses the synchronous fan.on_state callback in both paths.
+  Speed is retained unchanged, not inferred from the dynamic sleep pattern.
   These five template buttons inherit `olas_fan_internal` and the shared sender's
   control/startup/RX guards. No new counter, protocol or transport is introduced.
 - Native `template` event `olas_action` provides HA/API feedback for all five

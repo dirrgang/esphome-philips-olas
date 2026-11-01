@@ -90,7 +90,9 @@ the same sender, check XOR, four-copy waveform and sequence as fan/light. Their
 RX path validates ID/check, retains the existing duplicate filter, synchronizes
 the next shared sequence, logs the command and emits a `*_received` action event.
 It does not press the HA button,
-echo RF or change fan/light estimates. A deliberate repeated button press submits
+echo RF or infer active mode/timer state. Sleep is the power-estimate exception:
+accepted local or remote `0x30` publishes fan ON under the no-send guard.
+Direction/timer actions leave power estimates unchanged. A deliberate repeated button press submits
 a new action with a new sequence; no automatic retry is added.
 
 - Direction `0x50` is a toggle, with no confirmed forward/reverse state.
@@ -98,7 +100,10 @@ a new action with a new sequence; no automatic retry is added.
   on one test controller). The user describes dynamically varying speed based on
   prior experience; the pattern has not been measured. Toggle/repeat semantics,
   exit conditions and actual speeds remain unknown. No active sleep state or
-  inferred fixed speed is published; the previous fan estimate can be stale.
+  inferred fixed speed is published. Fan power is optimistically ON after a
+  sent or accepted remote sleep command, matching observed startup from OFF. The
+  speed field is retained, including zero/unknown after boot, and can be stale
+  during the dynamic pattern. Publication never sends a second speed command.
 - Timer commands are labelled 1 h / 3 h / 6 h from captured remote functions.
   Whether selections reset, toggle, cancel or replace timers is unknown. There
   is no countdown, automatic cancellation or assumed HA fan-OFF at expiry.
