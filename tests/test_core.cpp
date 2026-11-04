@@ -267,6 +267,17 @@ static void test_restored_estimate() {
   assert(tx.performed == 0 && a.sequence() == 1);
   assert(a.send(tx, olas::SLEEP));
   assert(a.estimate().fan_on && a.estimate().fan_speed == 5);
+
+  // A restored ON and preset send nothing either, and the next command replaces them.
+  olas::Device b(B, BX);
+  assert(gateway.add_device(&b));
+  const auto sent = tx.performed;
+  b.restore_fan_estimate(true, 3);
+  b.restore_white_preset(2);
+  assert(tx.performed == sent && b.sequence() == 1);
+  assert(b.estimate().fan_on && b.estimate().fan_speed == 3 && b.estimate().white_preset == 2);
+  assert(b.send(tx, olas::function_for_speed(0)) && !b.estimate().fan_on);
+  assert(b.estimate().fan_speed == 3 && b.estimate().white_preset == 2);
 }
 
 static void test_learning_candidates() {

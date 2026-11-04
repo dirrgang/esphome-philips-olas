@@ -35,6 +35,7 @@ class Device {
     estimate_.fan_on = on;
     estimate_.fan_speed = speed;
   }
+  void restore_white_preset(int preset) { estimate_.white_preset = preset; }
 
   // Hold while publishing received state: a send from a resulting callback is an echo.
   RfUpdateGuard publication_guard() { return RfUpdateGuard(rf_update_); }

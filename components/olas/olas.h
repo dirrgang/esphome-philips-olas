@@ -9,6 +9,7 @@
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/components/select/select.h"
 #include "esphome/core/component.h"
+#include "esphome/core/preferences.h"
 
 #include <vector>
 
@@ -16,6 +17,7 @@ namespace esphome::olas_component {
 
 class OlasGateway;
 class OlasFan;
+class OlasWhiteSelect;
 
 // One logical Olas address with its entities. All RF requests pass through send().
 class OlasDevice {
@@ -25,7 +27,7 @@ class OlasDevice {
   void set_gateway(OlasGateway *gateway) { this->gateway_ = gateway; }
   void set_fan(OlasFan *fan) { this->fan_ = fan; }
   void set_light(light::LightState *light) { this->light_ = light; }
-  void set_white_select(select::Select *white_select) { this->white_select_ = white_select; }
+  void set_white_select(OlasWhiteSelect *white_select) { this->white_select_ = white_select; }
   void set_action_event(event::Event *action_event) { this->action_event_ = action_event; }
 
   ::olas::Device &core() { return this->core_; }
@@ -46,7 +48,7 @@ class OlasDevice {
   OlasGateway *gateway_{nullptr};
   OlasFan *fan_{nullptr};
   light::LightState *light_{nullptr};
-  select::Select *white_select_{nullptr};
+  OlasWhiteSelect *white_select_{nullptr};
   event::Event *action_event_{nullptr};
 };
 
@@ -102,13 +104,18 @@ class OlasLightOutput : public light::LightOutput, public light::LightRemoteValu
   light::LightState *state_{nullptr};
 };
 
-class OlasWhiteSelect : public select::Select {
+// The select base class has no restore of its own, so the last preset is kept here.
+class OlasWhiteSelect : public select::Select, public Component {
  public:
   explicit OlasWhiteSelect(OlasDevice *device) : device_(device) {}
+  void setup() override;
+  // Saves the preset for the next boot and publishes it.
+  void remember(uint8_t index);
 
  protected:
   void control(size_t index) override;
   OlasDevice *device_;
+  ESPPreferenceObject pref_;
 };
 
 class OlasActionButton : public button::Button {

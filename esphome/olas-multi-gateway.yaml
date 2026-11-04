@@ -31,6 +31,11 @@ esp32:
 logger:
   level: INFO
 
+# Fan, light and white preset are restored at boot. A shorter interval keeps a recent
+# change across a power loss; only changed values are written.
+preferences:
+  flash_write_interval: 10s
+
 api:
   # Keep following the remotes while Home Assistant is away: a reboot would lose the
   # sequence and reset the fan estimates.
