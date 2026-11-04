@@ -167,6 +167,8 @@ requires its own capture and verification.
 - [Architecture](docs/architecture.md): components, HA state/events and shared
   CC1101/RF-proxy constraints.
 - [Verification](docs/verification.md): reproducible tests and evidence rules.
+- [Decisions](docs/decisions/0001-esphome-owned-multi-device-olas.md): accepted
+  multi-device target, not implemented yet.
 - [Hardware](docs/hardware.md), [upstream attribution](docs/upstream.md) and
   [agent/contribution rules](AGENTS.md).
 - [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues):
