@@ -5,15 +5,19 @@ on:
     paths:
       - .github/workflows/esphome.yml
       - mise.toml
+      - components/**
       - esphome/**
       - scripts/ci_config_smoke.py
+      - tests/fixtures/**
   push:
     branches: [main]
     paths:
       - .github/workflows/esphome.yml
       - mise.toml
+      - components/**
       - esphome/**
       - scripts/ci_config_smoke.py
+      - tests/fixtures/**
   workflow_dispatch:
 
 permissions:
@@ -35,3 +39,7 @@ jobs:
         run: mise run smoke-config
       - name: Compile ESP32-S2 synthetic firmware (no upload)
         run: mise run compile
+      - name: Validate public synthetic multi-device fixture
+        run: mise run config-multi
+      - name: Compile synthetic multi-device gateway (no upload)
+        run: mise run compile-multi

@@ -1,0 +1,27 @@
+# Synthetic build fixture, not an installation profile. Never flash this file.
+packages:
+  gateway: !include olas-multi-gateway.yaml
+
+substitutions:
+  olas_components_path: ../components
+  olas_node_name: olas-validation-multi
+  olas_wifi_ssid: synthetic-test-network
+  olas_wifi_password: synthetic-test-password
+  olas_api_encryption_key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
+  olas_fallback_ap_password: synthetic-ap-password
+
+esphome:
+  build_path: build/olas-multi-gateway
+
+olas:
+  receiver_id: rf_rx
+  transmitter_id: olas_tx
+  devices:
+    - id: olas_a
+      name: Fan A
+      address: 0x123456
+      check_xor: 0xA7
+    - id: olas_b
+      name: Fan B
+      address: 0x654321
+      check_xor: 0x39

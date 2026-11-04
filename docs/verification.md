@@ -102,6 +102,25 @@ package, then validate two isolated profiles with different synthetic data.
 They also verify target selection and that a failed build prevents installation.
 They never contact hardware. Never flash the synthetic build fixture.
 
+## Multi-device component checks — #16
+
+`mise run test` also runs the host tests of the multi-device core and requires
+both codec copies to be identical. These commands check the component schema and
+build the complete gateway with two synthetic devices:
+
+```bash
+mise run test-component
+mise run config-multi
+mise run compile-multi
+```
+
+**Never flash `tests/fixtures/olas-component.yaml` or
+`esphome/validation-multi.yaml`.** Their addresses are synthetic. These checks
+establish neither radio behavior, Home Assistant presentation nor two real fans on
+one gateway. Use the [physical regression matrix](#physical-regression-matrix) for
+each fan separately, then confirm that a command for one fan leaves the other
+unchanged and that no `TX requested` line appears during boot.
+
 ## Automated firmware CI and offline smoke tests — #4
 
 [GitHub Actions ESPHome firmware validation](../.github/workflows/esphome.yml)

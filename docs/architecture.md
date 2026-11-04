@@ -93,15 +93,27 @@ action state. Actual HA event rendering in the final
 [PR #32](https://github.com/dirrgang/esphome-philips-olas/pull/32)
 firmware remains unverified.
 
-Current firmware controls **one RF address per private gateway profile**.
-Two physical fans with different ID/check values were independently
-controlled at separate installations. One gateway controlling multiple
-physical fans simultaneously has not been tested or deployed. Host-only
+The single-device gateway controls **one RF address per private gateway profile**.
+The multi-device gateway addressed two physical fans from one radio in a short
+owner-observed test; its scope and the functions not yet exercised are recorded in
+[#20](https://github.com/dirrgang/esphome-philips-olas/issues/20). Host-only
 A → B → A sequence-isolation tests are not physical multi-device support.
 The accepted target is a multi-device ESPHome component
-([ADR 0001](decisions/0001-esphome-owned-multi-device-olas.md)), which is not
-implemented yet; see [#16](https://github.com/dirrgang/esphome-philips-olas/issues/16)
-and [#20](https://github.com/dirrgang/esphome-philips-olas/issues/20).
+([ADR 0001](decisions/0001-esphome-owned-multi-device-olas.md)); see
+[#16](https://github.com/dirrgang/esphome-philips-olas/issues/16) and
+[#20](https://github.com/dirrgang/esphome-philips-olas/issues/20).
+`components/olas/` implements it, and `esphome/olas-multi-gateway.yaml` is its
+gateway package; the single-device `esphome/olas-rf-gateway.yaml` is unchanged.
+The component has one receiver listener that routes frames by address, and each
+device has its own sequence, duplicate filter, guards, estimates and entities.
+A received fan update never reaches `control()`, so it cannot echo RF; the light
+keeps the inert-output design above. A fan with no saved speed assumes speed 1, so
+a first turn-on does not use ESPHome's default of full speed; after sleep from a cold
+boot, Home Assistant therefore shows this assumed speed. The gateway sets
+`reboot_timeout: 0s`, so it keeps following the remotes without an API client, but it
+no longer recovers by itself if the API hangs. The codec exists in `esphome/include/` and
+`components/olas/`; the host tests require both copies to be identical until the
+single-device gateway is retired.
 
 ## Light representation and transport limits
 

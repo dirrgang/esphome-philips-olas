@@ -8,8 +8,8 @@
 - **Two different physical Olas units in separate installations** have been
   successfully controlled with individually configured 24-bit RF IDs and
   check-XOR constants. Both independently observed ID/check pairs agree with
-  the ID-byte-XOR derivation described below. They were not operated
-  simultaneously by one gateway; see [#20](https://github.com/dirrgang/esphome-philips-olas/issues/20).
+  the ID-byte-XOR derivation described below. Operation through one gateway is
+  covered in [#20](https://github.com/dirrgang/esphome-philips-olas/issues/20).
 - The full local capture was decoded and the resulting device accepted our
   generated RF command. No over-the-air acknowledgement has been observed.
 
