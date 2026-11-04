@@ -114,6 +114,10 @@ void OlasFan::setup() {
   auto restore = this->restore_state_();
   if (restore.has_value())
     restore->apply(*this);  // Publishes only: control() is the sole RF path.
+  // FanCall would turn a fan with speed 0 on at full speed. Nothing was saved yet, so use
+  // the core's assumed starting speed instead.
+  if (this->speed == 0)
+    this->speed = this->device_->core().estimate().fan_speed;
   this->device_->core().restore_fan_estimate(this->state, static_cast<uint8_t>(this->speed));
 }
 
@@ -123,9 +127,7 @@ fan::FanTraits OlasFan::get_traits() { return fan::FanTraits(false, true, false,
 
 void OlasFan::control(const fan::FanCall &call) {
   const bool next_state = call.get_state().value_or(this->state);
-  int next_speed = call.get_speed().value_or(this->speed);
-  if (next_state && next_speed == 0)
-    next_speed = 1;
+  const int next_speed = call.get_speed().value_or(this->speed);
   // On success send() publishes the new estimate. On refusal, return HA to the current one.
   if (!this->device_->send(::olas::function_for_speed(next_state ? next_speed : 0)))
     this->publish_state();

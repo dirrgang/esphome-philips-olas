@@ -123,7 +123,7 @@ static void test_receive_routing_and_isolation() {
   const auto b_speed3 = olas::encode_frame(B, 0x9C | 3, BX);
   assert(feed(gateway, batch({a_speed6}), 100) == 1);
   assert(a.estimate().fan_on && a.estimate().fan_speed == 6 && a.sequence() == 1);
-  assert(!b.estimate().fan_on && b.estimate().fan_speed == 0 && b.sequence() == 1);
+  assert(!b.estimate().fan_on && b.estimate().fan_speed == 1 && b.sequence() == 1);
   assert(feed(gateway, batch({b_speed3}), 101) == 1);
   assert(b.estimate().fan_on && b.estimate().fan_speed == 3 && b.sequence() == 2);
 
@@ -226,12 +226,12 @@ static void test_estimates() {
   FakeTransmitter tx;
 
   // Initial values are assumptions, not observations.
-  assert(!a.estimate().fan_on && a.estimate().fan_speed == 0);
+  assert(!a.estimate().fan_on && a.estimate().fan_speed == 1);
   assert(!a.estimate().light_on && a.estimate().white_preset == -1);
 
-  // Sleep turns the estimate ON without inventing a speed, also from zero after boot.
+  // Sleep turns the estimate ON and keeps the assumed starting speed.
   assert(a.send(tx, olas::SLEEP));
-  assert(a.estimate().fan_on && a.estimate().fan_speed == 0);
+  assert(a.estimate().fan_on && a.estimate().fan_speed == 1);
 
   // Commanded values and retained speed.
   assert(a.send(tx, olas::function_for_speed(4)) && a.estimate().fan_speed == 4);

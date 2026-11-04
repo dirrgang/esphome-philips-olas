@@ -32,6 +32,9 @@ logger:
   level: INFO
 
 api:
+  # Keep following the remotes while Home Assistant is away: a reboot would lose the
+  # sequence and reset the fan estimates.
+  reboot_timeout: 0s
   encryption:
     key: ${olas_api_encryption_key}
 

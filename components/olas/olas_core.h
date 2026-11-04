@@ -12,7 +12,9 @@ namespace olas {
 // Commanded or overheard values only: Olas has no RF acknowledgement or telemetry.
 struct Estimate {
   bool fan_on{false};
-  uint8_t fan_speed{0};  // Last nonzero speed, retained while off; 0 until one is known.
+  // Last nonzero speed, retained while off. Starts at the lowest speed as an assumption,
+  // so a first turn-on is gentle instead of ESPHome's default of the highest speed.
+  uint8_t fan_speed{1};
   bool light_on{false};
   int white_preset{-1};  // -1 until a preset is commanded or heard.
 };
