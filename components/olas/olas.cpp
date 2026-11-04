@@ -9,6 +9,8 @@ static const char *const TAG = "olas";
 static const char *const TAG_LEARN = "olas.learn";
 static constexpr uint32_t LEARN_WINDOW_MS = 60000;
 static constexpr int SPEED_COUNT = 6;
+// Distinguishes the sequence from the fan state saved under the same entity.
+static constexpr uint32_t SEQUENCE_PREF_VERSION = 0x4F4C5351;
 
 bool OlasDevice::send(uint8_t function) {
   const uint8_t sequence = this->core_.sequence();
@@ -16,6 +18,7 @@ bool OlasDevice::send(uint8_t function) {
     return false;
   // RF IDs stay out of the log.
   ESP_LOGI(TAG, "%s: TX requested function=0x%02X seq=%u", this->name_, unsigned(function), unsigned(sequence));
+  this->fan_->save_sequence(this->core_.sequence());
 
   const auto guard = this->core_.publication_guard();
   if (::olas::speed_for_function(function) >= 0 || function == ::olas::SLEEP)
@@ -28,6 +31,7 @@ bool OlasDevice::send(uint8_t function) {
 
 void OlasDevice::on_frame(const ::olas::Frame &frame) {
   ESP_LOGI(TAG, "%s: RX function=0x%02X seq=%u", this->name_, unsigned(frame.function), unsigned(frame.sequence));
+  this->fan_->save_sequence(this->core_.sequence());
   const auto function = frame.function;
   if (::olas::speed_for_function(function) >= 0 || function == ::olas::SLEEP) {
     this->publish_fan_();
@@ -112,6 +116,11 @@ void OlasGateway::dump_config() {
 }
 
 void OlasFan::setup() {
+  this->sequence_pref_ = this->make_entity_preference<uint8_t>(SEQUENCE_PREF_VERSION);
+  uint8_t sequence = 0;
+  if (this->sequence_pref_.load(&sequence))
+    this->device_->core().restore_sequence(sequence);
+
   auto restore = this->restore_state_();
   if (restore.has_value())
     restore->apply(*this);  // Publishes only: control() is the sole RF path.

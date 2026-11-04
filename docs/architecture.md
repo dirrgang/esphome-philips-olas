@@ -115,7 +115,9 @@ no longer recovers by itself if the API hangs. Fan, light and white preset resto
 their last commanded or overheard values at boot, without any RF. This is a deliberate
 optimistic assumption, not a measurement: remote use while the gateway is off, a timer
 expiring or a power loss within the 10 s flash write interval leaves the restored value
-stale until the next command or received press. The RF sequence is not saved. The codec exists in `esphome/include/` and
+stale until the next command or received press. The next RF sequence is saved per fan
+on the same terms, because a restarted counter may repeat the fan's last sequence; see
+[#14](https://github.com/dirrgang/esphome-philips-olas/issues/14). The codec exists in `esphome/include/` and
 `components/olas/`; the host tests require both copies to be identical until the
 single-device gateway is retired.
 

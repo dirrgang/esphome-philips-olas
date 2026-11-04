@@ -278,6 +278,26 @@ static void test_restored_estimate() {
   assert(b.estimate().fan_on && b.estimate().fan_speed == 3 && b.estimate().white_preset == 2);
   assert(b.send(tx, olas::function_for_speed(0)) && !b.estimate().fan_on);
   assert(b.estimate().fan_speed == 3 && b.estimate().white_preset == 2);
+
+  // A restored sequence is used by the next command, sends nothing by itself and
+  // stays independent per device. Out-of-range saved values cannot leave two bits.
+  olas::Device c(0x777777, 0x22);
+  assert(gateway.add_device(&c));
+  const auto before = tx.performed;
+  const auto a_sequence = a.sequence();
+  c.restore_sequence(3);
+  assert(tx.performed == before && c.sequence() == 3 && a.sequence() == a_sequence);
+  assert(c.send(tx, olas::LIGHT_OFF));
+  auto data = tx.timings();
+  olas::Frame parsed;
+  assert(olas::decode_raw(data.data(), data.size(), 0x777777, 0x22, parsed));
+  assert(parsed.sequence == 3 && c.sequence() == 2);
+  c.restore_sequence(0xFF);
+  assert(c.sequence() == 3);
+
+  // A received press still overrides the restored value.
+  assert(feed(gateway, batch({olas::encode_frame(0x777777, olas::LIGHT_ON | 1, 0x22)}), 0) == 1);
+  assert(c.sequence() == 0);
 }
 
 static void test_learning_candidates() {

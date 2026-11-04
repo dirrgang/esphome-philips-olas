@@ -83,10 +83,13 @@ class OlasFan : public fan::Fan, public Component {
   void setup() override;
   void dump_config() override;
   fan::FanTraits get_traits() override;
+  // The next RF sequence of this device, kept for the next boot.
+  void save_sequence(uint8_t sequence) { this->sequence_pref_.save(&sequence); }
 
  protected:
   void control(const fan::FanCall &call) override;
   OlasDevice *device_;
+  ESPPreferenceObject sequence_pref_;
 };
 
 // LightState writes outputs later from loop(), after any publication guard has ended,
