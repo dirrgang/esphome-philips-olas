@@ -43,6 +43,7 @@ Home Assistant         ──API──────▶ ESP32-S2 ──RMT/SPI─�
 
 Architecture proposals and implementation sequencing are tracked in
 [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues).
+Accepted decisions are in [`docs/decisions/`](decisions/0001-esphome-owned-multi-device-olas.md).
 This document describes the implementation in this checkout.
 
 ## State estimates and Home Assistant actions
@@ -97,8 +98,10 @@ Two physical fans with different ID/check values were independently
 controlled at separate installations. One gateway controlling multiple
 physical fans simultaneously has not been tested or deployed. Host-only
 A → B → A sequence-isolation tests are not physical multi-device support.
-See [#20](https://github.com/dirrgang/esphome-philips-olas/issues/20)
-and the pending [ADR #27](https://github.com/dirrgang/esphome-philips-olas/issues/27).
+The accepted target is a multi-device ESPHome component
+([ADR 0001](decisions/0001-esphome-owned-multi-device-olas.md)), which is not
+implemented yet; see [#16](https://github.com/dirrgang/esphome-philips-olas/issues/16)
+and [#20](https://github.com/dirrgang/esphome-philips-olas/issues/20).
 
 ## Light representation and transport limits
 
@@ -188,10 +191,11 @@ on every hardware/driver failure.
 The current native gateway processes the first valid Olas frame in an RMT
 raw batch and suppresses an **exact** repeated frame for roughly 400 ms.
 That is a heuristic for multiple copies of one physical press, not a
-reliable boundary for rapid presses or held buttons. The alternative
-receive-only multi-device scanner in
+reliable boundary for rapid presses or held buttons. The receive-only
+multi-device scanner in
 [PR #21](https://github.com/dirrgang/esphome-philips-olas/pull/21)
-is not deployed.
+is not deployed; [ADR 0001](decisions/0001-esphome-owned-multi-device-olas.md)
+covers its selective reuse.
 
 The original remote's rapid ON → OFF failure cannot be explained by gateway
 deduplication alone because the fan itself remained ON. The observed
