@@ -35,6 +35,10 @@ class Device {
     estimate_.fan_on = on;
     estimate_.fan_speed = speed;
   }
+  void restore_white_preset(int preset) { estimate_.white_preset = preset; }
+  // Continue after the last known press. Presses missed while off are not knowable,
+  // and the next received press corrects it.
+  void restore_sequence(uint8_t sequence) { sequence_ = sequence & 0x03u; }
 
   // Hold while publishing received state: a send from a resulting callback is an echo.
   RfUpdateGuard publication_guard() { return RfUpdateGuard(rf_update_); }

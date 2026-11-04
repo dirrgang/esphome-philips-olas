@@ -9,6 +9,8 @@ static const char *const TAG = "olas";
 static const char *const TAG_LEARN = "olas.learn";
 static constexpr uint32_t LEARN_WINDOW_MS = 60000;
 static constexpr int SPEED_COUNT = 6;
+// Distinguishes the sequence from the fan state saved under the same entity.
+static constexpr uint32_t SEQUENCE_PREF_VERSION = 0x4F4C5351;
 
 bool OlasDevice::send(uint8_t function) {
   const uint8_t sequence = this->core_.sequence();
@@ -16,6 +18,7 @@ bool OlasDevice::send(uint8_t function) {
     return false;
   // RF IDs stay out of the log.
   ESP_LOGI(TAG, "%s: TX requested function=0x%02X seq=%u", this->name_, unsigned(function), unsigned(sequence));
+  this->fan_->save_sequence(this->core_.sequence());
 
   const auto guard = this->core_.publication_guard();
   if (::olas::speed_for_function(function) >= 0 || function == ::olas::SLEEP)
@@ -28,14 +31,16 @@ bool OlasDevice::send(uint8_t function) {
 
 void OlasDevice::on_frame(const ::olas::Frame &frame) {
   ESP_LOGI(TAG, "%s: RX function=0x%02X seq=%u", this->name_, unsigned(frame.function), unsigned(frame.sequence));
+  this->fan_->save_sequence(this->core_.sequence());
   const auto function = frame.function;
   if (::olas::speed_for_function(function) >= 0 || function == ::olas::SLEEP) {
     this->publish_fan_();
   } else if (function == ::olas::LIGHT_ON || function == ::olas::LIGHT_OFF) {
-    const bool on = this->core_.estimate().light_on;
-    this->light_->remote_values.set_state(on);
-    this->light_->current_values.set_state(on);
-    this->light_->publish_state();
+    // Unlike writing the values directly, a call also saves the state for the next boot.
+    // It publishes synchronously, so the publication guard refuses the listener's send.
+    auto call = this->light_->make_call();
+    call.set_state(this->core_.estimate().light_on);
+    call.perform();
   }
   this->publish_white_(function);
   // An action never presses a button or implies a mode state.
@@ -53,7 +58,7 @@ void OlasDevice::publish_fan_() {
 void OlasDevice::publish_white_(uint8_t function) {
   const int preset = ::olas::white_preset(function);
   if (preset >= 0)
-    this->white_select_->publish_state(static_cast<size_t>(preset));
+    this->white_select_->remember(static_cast<uint8_t>(preset));
 }
 
 void OlasGateway::add_device(OlasDevice *device) {
@@ -111,6 +116,11 @@ void OlasGateway::dump_config() {
 }
 
 void OlasFan::setup() {
+  this->sequence_pref_ = this->make_entity_preference<uint8_t>(SEQUENCE_PREF_VERSION);
+  uint8_t sequence = 0;
+  if (this->sequence_pref_.load(&sequence))
+    this->device_->core().restore_sequence(sequence);
+
   auto restore = this->restore_state_();
   if (restore.has_value())
     restore->apply(*this);  // Publishes only: control() is the sole RF path.
@@ -147,6 +157,21 @@ void OlasLightOutput::setup_state(light::LightState *state) {
 void OlasLightOutput::on_light_remote_values_update() {
   // The core refuses this before startup has finished and during received publication.
   this->device_->send(this->state_->remote_values.is_on() ? ::olas::LIGHT_ON : ::olas::LIGHT_OFF);
+}
+
+void OlasWhiteSelect::setup() {
+  this->pref_ = this->make_entity_preference<uint8_t>();
+  uint8_t index = 0;
+  // Stays unknown until a preset was commanded or heard once.
+  if (!this->pref_.load(&index) || index >= 3)
+    return;
+  this->device_->core().restore_white_preset(index);
+  this->publish_state(static_cast<size_t>(index));
+}
+
+void OlasWhiteSelect::remember(uint8_t index) {
+  this->pref_.save(&index);
+  this->publish_state(static_cast<size_t>(index));
 }
 
 void OlasWhiteSelect::control(size_t index) {

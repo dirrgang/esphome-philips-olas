@@ -111,7 +111,13 @@ keeps the inert-output design above. A fan with no saved speed assumes speed 1, 
 a first turn-on does not use ESPHome's default of full speed; after sleep from a cold
 boot, Home Assistant therefore shows this assumed speed. The gateway sets
 `reboot_timeout: 0s`, so it keeps following the remotes without an API client, but it
-no longer recovers by itself if the API hangs. The codec exists in `esphome/include/` and
+no longer recovers by itself if the API hangs. Fan, light and white preset restore
+their last commanded or overheard values at boot, without any RF. This is a deliberate
+optimistic assumption, not a measurement: remote use while the gateway is off, a timer
+expiring or a power loss within the 10 s flash write interval leaves the restored value
+stale until the next command or received press. The next RF sequence is saved per fan
+on the same terms, because a restarted counter may repeat the fan's last sequence; see
+[#14](https://github.com/dirrgang/esphome-philips-olas/issues/14). The codec exists in `esphome/include/` and
 `components/olas/`; the host tests require both copies to be identical until the
 single-device gateway is retired.
 

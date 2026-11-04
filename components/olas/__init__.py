@@ -33,7 +33,7 @@ OlasGateway = olas_ns.class_(
 OlasDevice = olas_ns.class_("OlasDevice")
 OlasFan = olas_ns.class_("OlasFan", fan.Fan, cg.Component)
 OlasLightOutput = olas_ns.class_("OlasLightOutput", light.LightOutput)
-OlasWhiteSelect = olas_ns.class_("OlasWhiteSelect", select.Select)
+OlasWhiteSelect = olas_ns.class_("OlasWhiteSelect", select.Select, cg.Component)
 OlasActionButton = olas_ns.class_("OlasActionButton", button.Button)
 OlasLearnButton = olas_ns.class_("OlasLearnButton", button.Button)
 OlasActionEvent = olas_ns.class_("OlasActionEvent", event.Event)
@@ -93,9 +93,10 @@ def _fill_entity_names(device):
             entity.setdefault(extra_key, value)
         filled[key] = entity
 
-    fill(CONF_FAN, name)
-    # The light starts as an assumed OFF; it is not restored as if it were measured.
-    fill(CONF_LIGHT, f"{name} Licht", restore_mode="ALWAYS_OFF")
+    # Optimistic: the last commanded or overheard state still applies after a restart.
+    # This restores the estimate only and sends nothing; an entity block may override it.
+    fill(CONF_FAN, name, restore_mode="RESTORE_DEFAULT_OFF")
+    fill(CONF_LIGHT, f"{name} Licht", restore_mode="RESTORE_DEFAULT_OFF")
     fill(CONF_WHITE_PRESET, f"{name} Weißton")
     fill(CONF_ACTION_EVENT, f"{name} Aktion")
     for key, suffix, _ in ACTIONS:
@@ -120,7 +121,9 @@ DEVICE_SCHEMA = cv.All(
             cv.Required(CONF_LIGHT): light.BINARY_LIGHT_SCHEMA.extend(
                 {cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(OlasLightOutput)}
             ),
-            cv.Required(CONF_WHITE_PRESET): select.select_schema(OlasWhiteSelect),
+            cv.Required(CONF_WHITE_PRESET): select.select_schema(
+                OlasWhiteSelect
+            ).extend(cv.COMPONENT_SCHEMA),
             cv.Required(CONF_ACTION_EVENT): event.event_schema(OlasActionEvent),
             **{
                 cv.Required(key): button.button_schema(OlasActionButton)
@@ -167,6 +170,7 @@ async def _device_to_code(gateway, config):
     white = await select.new_select(
         config[CONF_WHITE_PRESET], device, options=WHITE_OPTIONS
     )
+    await cg.register_component(white, config[CONF_WHITE_PRESET])
     cg.add(device.set_white_select(white))
 
     action_event = await event.new_event(
