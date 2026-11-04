@@ -20,6 +20,8 @@ external_components:
 esphome:
   name: ${olas_node_name}
   friendly_name: ${olas_friendly_name}
+  # The component uses remote_base and entity APIs of this release.
+  min_version: 2026.10.1
 
 esp32:
   variant: esp32s2

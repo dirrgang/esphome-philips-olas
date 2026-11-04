@@ -2,13 +2,15 @@
 
 import esphome.codegen as cg
 from esphome.components import button, event, fan, light, remote_base, select
+from esphome.components.remote_base import CONF_RECEIVER_ID, CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_DEVICES,
     CONF_ID,
+    CONF_LIGHT,
     CONF_NAME,
     CONF_OUTPUT_ID,
-    CONF_RESTORE_MODE,
 )
 
 AUTO_LOAD = ["button", "event", "fan", "light", "select"]
@@ -17,13 +19,9 @@ CODEOWNERS = ["@dirrgang"]
 
 CONF_ACTION_EVENT = "action_event"
 CONF_CHECK_XOR = "check_xor"
-CONF_DEVICES = "devices"
 CONF_FAN = "fan"
 CONF_LEARN_START = "learn_start"
 CONF_LEARN_STOP = "learn_stop"
-CONF_LIGHT = "light"
-CONF_RECEIVER_ID = "receiver_id"
-CONF_TRANSMITTER_ID = "transmitter_id"
 CONF_WHITE_PRESET = "white_preset"
 
 # Distinct from the portable ::olas codec namespace, because ESPHome's generated

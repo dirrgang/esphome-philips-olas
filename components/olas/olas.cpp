@@ -7,8 +7,8 @@ namespace esphome::olas_component {
 
 static const char *const TAG = "olas";
 static const char *const TAG_LEARN = "olas.learn";
-static const uint32_t LEARN_WINDOW_MS = 60000;
-static const int SPEED_COUNT = 6;
+static constexpr uint32_t LEARN_WINDOW_MS = 60000;
+static constexpr int SPEED_COUNT = 6;
 
 bool OlasDevice::send(uint8_t function) {
   const uint8_t sequence = this->core_.sequence();
@@ -57,13 +57,14 @@ void OlasDevice::publish_white_(uint8_t function) {
 }
 
 void OlasGateway::add_device(OlasDevice *device) {
+  // Its entities exist either way, and a rejected device stays not-ready, so it never sends.
+  device->set_gateway(this);
   // The schema already rejects these; this guards direct C++ use.
   if (!this->core_.add_device(&device->core())) {
     ESP_LOGE(TAG, "Invalid or duplicate logical device");
     this->mark_failed();
     return;
   }
-  device->set_gateway(this);
   this->devices_.push_back(device);
 }
 

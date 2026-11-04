@@ -1,6 +1,7 @@
 """Test the Olas component schema through the real ESPHome config pipeline."""
 
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -13,6 +14,18 @@ FIXTURE = (
 )
 
 
+class SourceConsistencyTests(unittest.TestCase):
+    def test_event_types_match_codec(self):
+        # A mismatch would only surface at runtime, as an error log instead of an event.
+        codec = (ROOT / "components/olas/olas_protocol.h").read_text()
+        component = (ROOT / "components/olas/__init__.py").read_text()
+        block = component[component.index("EVENT_TYPES = [") :]
+        declared = re.findall(r'"(\w+)"', block[: block.index("]")])
+        used = re.findall(r'"(\w+_(?:requested|received))"', codec)
+        self.assertEqual(len(declared), 10)
+        self.assertEqual(sorted(declared), sorted(used))
+
+
 class ComponentConfigTests(unittest.TestCase):
     def validate(self, content, expected_error=None):
         with tempfile.TemporaryDirectory(prefix="olas-config-") as tmp:
@@ -21,6 +34,7 @@ class ComponentConfigTests(unittest.TestCase):
             result = subprocess.run(
                 ["esphome", "config", str(path)],
                 capture_output=True,
+                check=False,  # The tests assert the return code themselves.
                 text=True,
                 timeout=120,
             )
@@ -43,9 +57,7 @@ class ComponentConfigTests(unittest.TestCase):
         )
 
     def test_duplicate_addresses(self):
-        self.validate(
-            FIXTURE.replace("0x654321", "0x123456"), "Duplicate Olas address"
-        )
+        self.validate(FIXTURE.replace("0x654321", "0x123456"), "Duplicate Olas address")
 
     def test_duplicate_ids(self):
         self.validate(FIXTURE.replace("id: olas_b", "id: olas_a"), "redefined")
