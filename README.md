@@ -161,6 +161,32 @@ profile, then perform the
 New profiles default to disabled control and hidden fan. A different device
 requires its own capture and verification.
 
+## Several fans on one gateway (experimental)
+
+`esphome/olas-multi-gateway.yaml` drives several fans from one CC1101 through the
+`components/olas` external component. Include it from a private profile instead of
+the single-device gateway, keep the same secrets and add:
+
+```yaml
+olas:
+  receiver_id: rf_rx
+  transmitter_id: olas_tx
+  devices:
+    - id: fan_a
+      name: Philips Olas # Same name keeps the existing Home Assistant entities.
+      address: !secret olas_fan_id
+      check_xor: !secret olas_check_xor
+    - id: fan_b
+      name: Philips Olas 2
+      address: !secret olas_fan_b_id
+      check_xor: !secret olas_fan_b_check_xor
+```
+
+Each fan gets the entities described above. **RF lernen (60 s)** works with an
+empty `devices: []` list. Radio coverage is not guaranteed; a further gateway is
+the [documented fallback](docs/decisions/0001-esphome-owned-multi-device-olas.md).
+Physical test scope is in [#20](https://github.com/dirrgang/esphome-philips-olas/issues/20).
+
 ## Documentation
 
 - [Protocol](docs/protocol.md): RF frame, opcode and physical-device knowledge.
@@ -168,7 +194,7 @@ requires its own capture and verification.
   CC1101/RF-proxy constraints.
 - [Verification](docs/verification.md): reproducible tests and evidence rules.
 - [Decisions](docs/decisions/0001-esphome-owned-multi-device-olas.md): accepted
-  multi-device target, not implemented yet.
+  multi-device architecture.
 - [Hardware](docs/hardware.md), [upstream attribution](docs/upstream.md) and
   [agent/contribution rules](AGENTS.md).
 - [GitHub Issues](https://github.com/dirrgang/esphome-philips-olas/issues):

@@ -5,10 +5,9 @@
 - **Decision issue:** [#27](https://github.com/dirrgang/esphome-philips-olas/issues/27)
 - **Implementation:** [#16](https://github.com/dirrgang/esphome-philips-olas/issues/16)
 
-This ADR sets the target architecture. **It is not implemented yet**, and it
-authorizes no firmware migration or RF transmission. The
-[architecture document](../architecture.md) describes the implementation in the
-current checkout.
+This ADR records the architecture decision. It authorizes no firmware migration or
+RF transmission. The [architecture document](../architecture.md) describes the
+implementation in the current checkout. The context below is as of the decision date.
 
 ## Context
 

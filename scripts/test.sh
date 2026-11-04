@@ -15,5 +15,16 @@ fi
   "$ROOT/tests/test_protocol.cpp" -o "$TMP/olas-tests"
 "$TMP/olas-tests"
 
+# ESPHome copies these headers to different build locations, and private profiles
+# name the esphome/include path. Keep both copies identical until the single-device
+# gateway is retired (ADR 0001).
+cmp -s "$ROOT/esphome/include/olas_protocol.h" "$ROOT/components/olas/olas_protocol.h" || {
+  echo "Divergent Olas codecs: sync esphome/include and components/olas" >&2
+  exit 1
+}
+"${COMPILER[@]}" -std=c++17 -Wall -Wextra -Werror -pedantic -I"$ROOT/components/olas" \
+  "$ROOT/tests/test_core.cpp" -o "$TMP/olas-core-tests"
+"$TMP/olas-core-tests"
+
 # Synthetic RF proxy diagnostics; API network calls are fully mocked.
 python3 -m unittest discover -s "$ROOT/tests" -p 'test_rf_proxy_diagnose.py' -v

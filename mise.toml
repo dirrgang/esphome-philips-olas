@@ -20,6 +20,18 @@ run = "esphome config esphome/validation.yaml"
 description = "Compile the shared gateway with synthetic configuration; never flash"
 run = "esphome compile esphome/validation.yaml"
 
+[tasks.test-component]
+description = "Test the Olas component schema with the pinned ESPHome (offline)"
+run = "python -m unittest discover -s tests -p test_component_config.py"
+
+[tasks.config-multi]
+description = "Validate the multi-device gateway with synthetic configuration"
+run = "esphome config esphome/validation-multi.yaml"
+
+[tasks.compile-multi]
+description = "Compile the multi-device gateway with synthetic configuration; never flash"
+run = "esphome compile esphome/validation-multi.yaml"
+
 [tasks.version]
 description = "Display the pinned ESPHome version"
 run = "esphome version"
