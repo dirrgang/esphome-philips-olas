@@ -1,5 +1,10 @@
 # ESPHome Philips Olas
 
+[![Protocol unit tests](https://github.com/dirrgang/esphome-philips-olas/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/dirrgang/esphome-philips-olas/actions/workflows/test.yml)
+[![ESPHome firmware validation](https://github.com/dirrgang/esphome-philips-olas/actions/workflows/esphome.yml/badge.svg?branch=main)](https://github.com/dirrgang/esphome-philips-olas/actions/workflows/esphome.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Tested with ESPHome 2026.10.1](https://img.shields.io/badge/tested%20with%20ESPHome-2026.10.1-informational)](#hardware)
+
 Independent ESPHome gateway for Philips Olas ceiling fans, using an ESP32-S2
 Mini and CC1101 at 434 MHz ASK/OOK. Not an official Philips/Signify product.
 It integrates a six-speed Home Assistant fan, independent light ON/OFF,
