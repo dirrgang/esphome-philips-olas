@@ -35,11 +35,15 @@ Use [mise](https://mise.jdx.dev/) to install the pinned toolchain:
 
 ```sh
 mise install
+mise run hooks   # install the pre-commit hook (prek)
 mise run version
 mise run test
 ```
 
-The environment includes Python 3.13, uv 0.12.10 and ESPHome 2026.10.1.
+The environment includes Python 3.13, uv 0.12.10, prek and ESPHome 2026.10.1.
+`mise run lint` runs the same hooks as CI: a guard against committing secrets,
+private profiles or firmware images, file checks and a [zizmor](https://docs.zizmor.sh/)
+audit of the GitHub workflows.
 Host tests need Bash/C++17 (Git Bash and pinned Zig on Windows).
 [ESPHome firmware CI](.github/workflows/esphome.yml) checks a synthetic
 configuration, rejects a broken include and compiles for ESP32-S2; it does

@@ -1,0 +1,27 @@
+# The ESPHome, Python, uv and prek pins in mise.toml are not a Dependabot
+# ecosystem; update them deliberately and re-run the firmware validation.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+    groups:
+      hooks:
+        patterns: ["*"]

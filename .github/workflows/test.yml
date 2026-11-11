@@ -1,35 +1,58 @@
 name: Protocol unit tests
+
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - name: Check mise.toml syntax
-        run: python3 -c "import tomllib; tomllib.load(open('mise.toml', 'rb'))"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned mise tools
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
       - name: C++17 host tests
-        run: ./scripts/test.sh
+        run: mise run test
+
   windows-console:
     runs-on: windows-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: "3.13"
+          persist-credentials: false
+      # Only the pinned Python is needed; skip ESPHome and Zig on Windows.
+      - name: Install pinned Python
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          install_args: python
       - name: Synthetic RF diagnostic tests on native Windows Python
-        run: python -m unittest discover -s tests -p test_rf_proxy_diagnose.py -v
+        env:
+          MISE_EXEC_AUTO_INSTALL: "false"
+        run: mise exec -- python -m unittest discover -s tests -p test_rf_proxy_diagnose.py -v
+
   profiles:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: "3.13"
-      - name: Install pinned ESPHome CLI
-        run: python -m pip install esphome==2026.10.1
+          persist-credentials: false
+      - name: Install pinned mise tools (incl. ESPHome)
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
       - name: Profile isolation and target selection
-        run: python -m unittest discover -s tests -p test_profiles.py
+        run: mise run test-profiles
       - name: Olas component schema
-        run: python -m unittest discover -s tests -p test_component_config.py
+        run: mise run test-component

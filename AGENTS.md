@@ -68,6 +68,9 @@ Issue. Do not edit historical PR discussions merely to make them read as current
 
 Use the pinned mise toolchain (`mise install` to provision it):
 
+- Every change: `mise run lint` (prek hooks: private-artifact guard, file
+  checks, zizmor). `mise run hooks` installs them as a Git pre-commit hook.
+  Pin GitHub Actions and hook revisions to full commit SHAs.
 - Codec changes: `mise run test` (Bash and C++17; Zig on Windows).
 - Shared YAML changes: `mise run config`, then `mise run compile` use the
   synthetic fixture. Never install that fixture or require real credentials.

@@ -170,4 +170,3 @@ remain in issues/PRs.
   **not** follow the ID-byte-XOR hypothesis; it tests independently
   configurable check values, not a third physical device.
 - These values are synthetic; real identifiers and captures remain private.
-

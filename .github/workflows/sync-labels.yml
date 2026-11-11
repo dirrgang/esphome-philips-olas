@@ -8,30 +8,36 @@ on:
       - ".github/workflows/sync-labels.yml"
   workflow_dispatch:
 
-permissions:
-  contents: read
-  issues: write
+permissions: {}
+
+# Serialize label syncs; never cancel a half-finished run.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write # create/update repository labels
     steps:
-      - uses: actions/checkout@v4
-      - name: Create or update labels (no deletions)
-        uses: actions/github-script@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          script: |
-            const fs = require("node:fs");
-            const labels = JSON.parse(fs.readFileSync(".github/labels.json", "utf8"));
-            for (const label of labels) {
-              const repo = context.repo;
-              const params = { ...repo, name: label.name, color: label.color, description: label.description };
-              try {
-                await github.rest.issues.getLabel({ ...repo, name: label.name });
-                await github.rest.issues.updateLabel(params);
-              } catch (error) {
-                if (error.status !== 404) throw error;
-                await github.rest.issues.createLabel(params);
-              }
-              core.info("Synced label: " + label.name);
-            }
+          persist-credentials: false
+      # Uses the preinstalled gh CLI instead of a third-party script action.
+      # `--force` updates existing labels; labels missing from the file are kept.
+      - name: Create or update labels (no deletions)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jq -c '.[]' .github/labels.json | while IFS= read -r label; do
+            name="$(jq -r '.name' <<<"$label")"
+            gh label create "$name" \
+              --repo "$GITHUB_REPOSITORY" \
+              --color "$(jq -r '.color' <<<"$label")" \
+              --description "$(jq -r '.description' <<<"$label")" \
+              --force
+            echo "Synced label: $name"
+          done
