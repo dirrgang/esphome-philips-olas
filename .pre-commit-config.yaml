@@ -1,0 +1,34 @@
+# Run with prek (https://github.com/j178/prek): `mise run hooks` installs the git hook,
+# `mise run lint` checks all files (as CI does).
+repos:
+  - repo: local
+    hooks:
+      # .gitignore keeps these out, but not against `git add -f`. Real profiles,
+      # secrets, captures and firmware images belong in ignored esphome/local/.
+      - id: forbid-private-artifacts
+        name: forbid private profiles, secrets and firmware images
+        description: Installation-specific data must never be committed (see AGENTS.md).
+        language: fail
+        entry: "Private profiles, secrets and build outputs must not be committed (use esphome/local/):"
+        files: '(^|/)secrets(-[^/]*)?\.yaml$|^esphome/local/|^mise\.local\.toml$|\.(bin|elf|map)$'
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-toml
+      # --unsafe: syntax-only, so ESPHome tags (!include, !secret, !lambda) parse.
+      - id: check-yaml
+        args: [--unsafe]
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: trailing-whitespace
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: 06a39750ec31860bb44f2acf67182c40016cd1e7 # v1.32.0
+    hooks:
+      - id: zizmor
