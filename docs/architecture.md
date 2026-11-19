@@ -204,6 +204,34 @@ transmits while retaining the previous reply. Merely queuing native Olas sends
 cannot fix the proxy's reply ownership. There is no guarantee of radio recovery
 on every hardware/driver failure.
 
+## RMT interrupts during flash writes
+
+The ESP32-S2 RMT has no DMA. `olas_tx` uses one 64-symbol block, and the
+[IDF 5.5.6 driver](https://github.com/espressif/esp-idf/blob/v5.5.6/components/esp_driver_rmt/src/rmt_tx.c)
+refills half of it from the TX interrupt while a burst is sent. One symbol is one
+bit (~1.07 ms; see [physical coding](protocol.md#physical-coding)), and four copies
+take about 210 ms. With `non_blocking: true` the main loop runs on during the burst.
+`OlasDevice::send()` saves the next sequence right after the submission, and the
+light or fan state changes with it, so the next `preferences` sync can write NVS
+while the copies are still being sent. A flash write or erase disables the cache,
+and an interrupt not allocated with `ESP_INTR_FLAG_IRAM` waits until it is restored.
+By default that includes RMT, although its handler and ESPHome's encoder callback
+are already in IRAM. A refill that comes too late corrupts the burst without an error:
+`TX requested` and `on_complete` look normal.
+
+The multi-device gateway therefore sets `CONFIG_RMT_TX_ISR_CACHE_SAFE` and
+`CONFIG_RMT_RX_ISR_CACHE_SAFE`, so both interrupts are allocated IRAM-safe and keep
+running during flash access. The driver then requires the TX payload in internal RAM.
+Without PSRAM, ESPHome's encoded buffer is there; a failed check would log
+`rmt_transmit failed` for every send. The 10 s `flash_write_interval` is kept. A
+different interval only changes how often a write overlaps a burst, not whether it
+can. In a stress build with a 100 ms interval, so that a write overlaps nearly every
+burst, the light followed only about 3 of 20 alternating commands without these
+options and lost one with them
+([#7](https://github.com/dirrgang/esphome-philips-olas/issues/7)). This removes one
+cause of lost commands, not every cause. The single-device `olas-rf-gateway.yaml`
+has the same RMT setup but does not set the options and was not tested.
+
 ## Receive batching and duplicate suppression
 
 The current native gateway processes the first valid Olas frame in an RMT

@@ -27,6 +27,12 @@ esp32:
   variant: esp32s2
   framework:
     type: esp-idf
+    # Keep the RMT interrupts running while a flash write disables the cache. Otherwise
+    # a write during a burst delays the refill and corrupts it without an error; see
+    # docs/architecture.md.
+    sdkconfig_options:
+      CONFIG_RMT_TX_ISR_CACHE_SAFE: y
+      CONFIG_RMT_RX_ISR_CACHE_SAFE: y
 
 logger:
   level: INFO
